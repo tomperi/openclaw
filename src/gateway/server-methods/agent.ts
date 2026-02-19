@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
+import type { GatewayRequestHandlerOptions, GatewayRequestHandlers } from "./types.js";
 import { listAgentIds } from "../../agents/agent-scope.js";
+import { resolveReplyToMode } from "../../auto-reply/reply/reply-threading.js";
 import { BARE_SESSION_RESET_PROMPT } from "../../auto-reply/reply/session-reset-prompt.js";
 import { agentCommand } from "../../commands/agent.js";
 import { loadConfig } from "../../config/config.js";
@@ -49,7 +51,6 @@ import { waitForAgentJob } from "./agent-job.js";
 import { injectTimestamp, timestampOptsFromConfig } from "./agent-timestamp.js";
 import { normalizeRpcAttachmentsToChatAttachments } from "./attachment-normalize.js";
 import { sessionsHandlers } from "./sessions.js";
-import type { GatewayRequestHandlerOptions, GatewayRequestHandlers } from "./types.js";
 
 const RESET_COMMAND_RE = /^\/(new|reset)(?:\s+([\s\S]*))?$/i;
 
@@ -405,6 +406,7 @@ export const agentHandlers: GatewayRequestHandlers = {
         space: resolvedGroupSpace ?? entry?.space,
         cliSessionIds: entry?.cliSessionIds,
         claudeCliSessionId: entry?.claudeCliSessionId,
+        chatType: entry?.chatType,
       };
       sessionEntry = nextEntry;
       const sendPolicy = resolveSendPolicy({
@@ -524,6 +526,12 @@ export const agentHandlers: GatewayRequestHandlers = {
     respond(true, accepted, undefined, { runId });
 
     const resolvedThreadId = explicitThreadId ?? deliveryPlan.resolvedThreadId;
+    const replyToMode = resolveReplyToMode(
+      cfg,
+      resolvedChannel,
+      resolvedAccountId,
+      sessionEntry?.chatType,
+    );
 
     void agentCommand(
       {
@@ -545,6 +553,7 @@ export const agentHandlers: GatewayRequestHandlers = {
           groupChannel: resolvedGroupChannel,
           groupSpace: resolvedGroupSpace,
           currentThreadTs: resolvedThreadId != null ? String(resolvedThreadId) : undefined,
+          replyToMode,
         },
         groupId: resolvedGroupId,
         groupChannel: resolvedGroupChannel,
