@@ -1,3 +1,4 @@
+import type { AgentCommandOpts } from "./agent/types.js";
 import {
   listAgentIds,
   resolveAgentDir,
@@ -56,12 +57,12 @@ import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { applyVerboseOverride } from "../sessions/level-overrides.js";
 import { applyModelOverrideToSessionEntry } from "../sessions/model-overrides.js";
 import { resolveSendPolicy } from "../sessions/send-policy.js";
+import { resolveSlackAccount, resolveSlackReplyToMode } from "../slack/accounts.js";
 import { resolveMessageChannel } from "../utils/message-channel.js";
 import { deliverAgentCommandResult } from "./agent/delivery.js";
 import { resolveAgentRunContext } from "./agent/run-context.js";
 import { updateSessionStoreAfterAgentRun } from "./agent/session-store.js";
 import { resolveSession } from "./agent/session.js";
-import type { AgentCommandOpts } from "./agent/types.js";
 
 type PersistSessionEntryParams = {
   sessionStore: Record<string, SessionEntry>;
@@ -517,6 +518,22 @@ export async function agentCommand(
     let fallbackModel = model;
     try {
       const runContext = resolveAgentRunContext(opts);
+
+      // Fix: populate replyToMode from Slack config when not already set.
+      // The auto-reply path resolves this in buildSlackThreadingToolContext,
+      // but the agent-method path (subagent completion announce) skips that,
+      // leaving replyToMode undefined and breaking message-tool auto-threading.
+      if (!runContext.replyToMode && sessionEntry?.chatType) {
+        const ch = resolveMessageChannel(
+          runContext.messageChannel,
+          opts.replyChannel ?? opts.channel,
+        );
+        if (ch === "slack") {
+          const account = resolveSlackAccount({ cfg, accountId: runContext.accountId });
+          runContext.replyToMode = resolveSlackReplyToMode(account, sessionEntry.chatType);
+        }
+      }
+
       const messageChannel = resolveMessageChannel(
         runContext.messageChannel,
         opts.replyChannel ?? opts.channel,
