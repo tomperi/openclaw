@@ -5,7 +5,7 @@
 import type { Block, KnownBlock } from "@slack/types";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import { sendMessageSlack } from "../slack/src/send.runtime.js";
-import { ownerCardHeader } from "./messages.js";
+import { ownerCardHeader, ownerCardResolved } from "./messages.js";
 import type { PendingRequest } from "./pending-store.js";
 
 export type OwnerCardSendResult = {
@@ -75,4 +75,30 @@ function buildOwnerCardBlocks(request: PendingRequest): (Block | KnownBlock)[] {
 
 function flattenForBlockquote(text: string): string {
   return text.replace(/\r?\n+/g, " ");
+}
+
+export function buildResolvedCardBlocks(params: {
+  request: PendingRequest;
+  decision: "approved" | "denied";
+  operatorName: string;
+  resolvedAt: Date;
+}): (Block | KnownBlock)[] {
+  return [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*${ownerCardHeader()}*\n${ownerCardResolved(params.decision, params.operatorName, params.resolvedAt)}`,
+      },
+    },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `<@${params.request.senderId}> · \`${params.request.reqId}\``,
+        },
+      ],
+    },
+  ];
 }

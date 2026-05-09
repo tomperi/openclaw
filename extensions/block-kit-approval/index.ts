@@ -1,8 +1,17 @@
 import { definePluginEntry, type OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import { subscribeToPairingRequestCreated } from "../slack/src/monitor/pairing-events.runtime.js";
-import { createInteractiveHandler } from "./interactive-handler.js";
-import { sendOwnerApprovalCard } from "./owner-notify.js";
-import { attachOwnerCard, type PendingRequest, upsert as upsertPending } from "./pending-store.js";
+import { sendMessageSlack } from "../slack/src/send.runtime.js";
+import { approvePairingCode } from "./allowlist-mutate.js";
+import { createInteractiveHandler, type InteractionOp } from "./interactive-handler.js";
+import { APPROVED_REPLY, DENIED_REPLY } from "./messages.js";
+import { buildResolvedCardBlocks, sendOwnerApprovalCard } from "./owner-notify.js";
+import {
+  attachOwnerCard,
+  get as getPending,
+  type PendingRequest,
+  remove as removePending,
+  upsert as upsertPending,
+} from "./pending-store.js";
 
 type BlockKitApprovalConfig = {
   operatorSlackUserId?: string;
@@ -26,10 +35,26 @@ export default definePluginEntry({
       createInteractiveHandler({
         operatorSlackUserId,
         resolve: async ({ op, reqId, ctx }) => {
-          // Step 6 wires the actual approve/deny side effects (allowlist + replies).
-          api.logger.info(
-            `block-kit-approval: ${op} clicked for reqId=${reqId} by ${ctx.senderId}`,
-          );
+          const request = getPending(reqId);
+          if (!request) {
+            api.logger.info(
+              `block-kit-approval: ${op} clicked for unknown reqId=${reqId} (already resolved or restarted)`,
+            );
+            return;
+          }
+          try {
+            await resolvePending({
+              api,
+              op,
+              request,
+              operatorSlackUserId: ctx.senderId ?? operatorSlackUserId,
+              editOwnerCard: async (blocks) => {
+                await ctx.respond.editMessage({ blocks });
+              },
+            });
+          } finally {
+            removePending(reqId);
+          }
         },
       }),
     );
@@ -55,6 +80,61 @@ export default definePluginEntry({
     });
   },
 });
+
+async function resolvePending(params: {
+  api: OpenClawPluginApi;
+  op: InteractionOp;
+  request: PendingRequest;
+  operatorSlackUserId: string;
+  editOwnerCard: (blocks: ReturnType<typeof buildResolvedCardBlocks>) => Promise<void>;
+}): Promise<void> {
+  const { api, op, request, operatorSlackUserId, editOwnerCard } = params;
+  const decision = op === "approve" ? "approved" : "denied";
+  const resolvedAt = new Date();
+
+  if (op === "approve") {
+    const approved = await approvePairingCode({
+      reqId: request.reqId,
+      accountId: request.accountId,
+    });
+    if (!approved.ok) {
+      api.logger.warn(
+        `block-kit-approval: approveChannelPairingCode failed for ${request.reqId}: ${approved.error}`,
+      );
+    }
+    await sendCustomerReply(api, request, APPROVED_REPLY);
+  } else {
+    // Note: the underlying slack pairing-store entry lingers until TTL/restart;
+    // there's no public delete API today.
+    await sendCustomerReply(api, request, DENIED_REPLY);
+  }
+
+  await editOwnerCard(
+    buildResolvedCardBlocks({
+      request,
+      decision,
+      operatorName: `<@${operatorSlackUserId}>`,
+      resolvedAt,
+    }),
+  );
+}
+
+async function sendCustomerReply(
+  api: OpenClawPluginApi,
+  request: PendingRequest,
+  text: string,
+): Promise<void> {
+  try {
+    await sendMessageSlack(request.senderId, text, {
+      cfg: api.config,
+      accountId: request.accountId,
+    });
+  } catch (err) {
+    api.logger.warn(
+      `block-kit-approval: failed to reply to ${request.senderId}: ${formatError(err)}`,
+    );
+  }
+}
 
 function formatError(err: unknown): string {
   return err instanceof Error ? err.message : String(err);

@@ -1,11 +1,23 @@
-export type ApproveResult = {
-  ok: boolean;
-  error?: string;
-};
+import { approveChannelPairingCode } from "openclaw/plugin-sdk/conversation-runtime";
 
-export async function approveRequest(_params: {
+export type ApproveResult = { ok: true; senderId: string } | { ok: false; error: string };
+
+export async function approvePairingCode(params: {
   reqId: string;
   accountId: string;
 }): Promise<ApproveResult> {
-  throw new Error("approveRequest: not implemented (step 6)");
+  try {
+    const result = await approveChannelPairingCode({
+      channel: "slack",
+      code: params.reqId,
+      accountId: params.accountId,
+      env: process.env,
+    });
+    if (!result) {
+      return { ok: false, error: "no matching pairing request" };
+    }
+    return { ok: true, senderId: result.id };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }
