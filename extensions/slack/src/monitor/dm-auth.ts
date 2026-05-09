@@ -4,6 +4,7 @@ import { formatErrorMessage } from "openclaw/plugin-sdk/error-runtime";
 import { resolveSlackAllowListMatch } from "./allow-list.js";
 import type { SlackMonitorContext } from "./context.js";
 import { upsertChannelPairingRequest } from "./conversation.runtime.js";
+import { notifyPairingRequestCreated } from "./pairing-events.js";
 
 export async function authorizeSlackDirectMessage(params: {
   ctx: SlackMonitorContext;
@@ -49,10 +50,16 @@ export async function authorizeSlackDirectMessage(params: {
       senderIdLine: `Your Slack user id: ${params.senderId}`,
       meta: { name: senderName },
       sendPairingReply: params.sendPairingReply,
-      onCreated: () => {
+      onCreated: ({ code }) => {
         params.log(
           `slack pairing request sender=${params.senderId} name=${senderName ?? "unknown"} (${allowMatchMeta})`,
         );
+        notifyPairingRequestCreated({
+          code,
+          senderId: params.senderId,
+          senderName,
+          accountId: params.accountId,
+        });
       },
       onReplyError: (err) => {
         params.log(`slack pairing reply failed for ${params.senderId}: ${formatErrorMessage(err)}`);
