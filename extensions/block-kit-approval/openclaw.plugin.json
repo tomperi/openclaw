@@ -1,0 +1,26 @@
+{
+  "id": "block-kit-approval",
+  "activation": {
+    "onStartup": true
+  },
+  "enabledByDefault": true,
+  "name": "Block Kit Approval",
+  "description": "Approve unknown Slack senders via Block Kit DM to operator.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "operatorSlackUserId": {
+        "type": "string",
+        "description": "Slack user ID of the operator who receives approval requests."
+      }
+    },
+    "required": ["operatorSlackUserId"]
+  },
+  "uiHints": {
+    "operatorSlackUserId": {
+      "label": "Operator Slack User ID",
+      "help": "Slack user ID (Uxxx…) that receives approval cards for unknown senders."
+    }
+  }
+}
