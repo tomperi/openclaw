@@ -1,5 +1,6 @@
 export const miscExtensionTestRoots = [
   "extensions/arcee",
+  "extensions/block-kit-approval",
   "extensions/brave",
   "extensions/device-pair",
   "extensions/diagnostics-otel",
