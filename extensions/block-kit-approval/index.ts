@@ -31,6 +31,9 @@ export default definePluginEntry({
       return;
     }
 
+    // `api.registerInteractiveHandler` is typed with `TContext = unknown`; the
+    // slack channel dispatcher narrows the context to SlackInteractiveHandlerContext
+    // at runtime. The `as never` widens the registration to match the public type.
     api.registerInteractiveHandler(
       createInteractiveHandler({
         operatorSlackUserId,
@@ -56,7 +59,7 @@ export default definePluginEntry({
             removePending(reqId);
           }
         },
-      }),
+      }) as never,
     );
 
     subscribeToPairingRequestCreated(async (event) => {
