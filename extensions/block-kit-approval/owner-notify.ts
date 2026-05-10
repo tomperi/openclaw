@@ -38,6 +38,17 @@ function buildOwnerCardBlocks(request: PendingRequest): (Block | KnownBlock)[] {
   if (request.senderEmail) {
     fields.push({ type: "mrkdwn", text: `*Email:* ${request.senderEmail}` });
   }
+  if (request.originChannelId) {
+    const channelRef = request.originChannelName
+      ? `#${request.originChannelName}`
+      : `<#${request.originChannelId}>`;
+    fields.push({
+      type: "mrkdwn",
+      text: `*Channel:* ${channelRef}${request.originThreadTs ? " (thread)" : ""}`,
+    });
+  } else {
+    fields.push({ type: "mrkdwn", text: "*Channel:* DM" });
+  }
   const blocks: (Block | KnownBlock)[] = [
     { type: "header", text: { type: "plain_text", text: ownerCardHeader() } },
     { type: "section", fields },

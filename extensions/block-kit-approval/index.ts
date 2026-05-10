@@ -77,6 +77,10 @@ export default definePluginEntry({
         channel: "slack",
         accountId: event.accountId,
         createdAtMs: Date.now(),
+        originalText: event.originalText,
+        originChannelId: event.channelId,
+        originChannelName: event.channelName,
+        originThreadTs: event.threadTs,
       };
       upsertPending(request);
       try {
@@ -134,15 +138,19 @@ async function sendCustomerReply(
   request: PendingRequest,
   text: string,
 ): Promise<void> {
+  // Reply where the requester originally engaged: in the room (with thread_ts
+  // if the message was threaded) for room-triggered pairings, or the
+  // requester's DM for DM-triggered ones.
+  const to = request.originChannelId ?? request.senderId;
+  const userMention = request.originChannelId ? `<@${request.senderId}> ${text}` : text;
   try {
-    await sendMessageSlack(request.senderId, text, {
+    await sendMessageSlack(to, userMention, {
       cfg: api.config,
       accountId: request.accountId,
+      threadTs: request.originThreadTs,
     });
   } catch (err) {
-    api.logger.warn(
-      `block-kit-approval: failed to reply to ${request.senderId}: ${formatError(err)}`,
-    );
+    api.logger.warn(`block-kit-approval: failed to reply to ${to}: ${formatError(err)}`);
   }
 }
 

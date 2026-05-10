@@ -9,6 +9,11 @@ export type PendingRequest = {
   createdAtMs: number;
   ownerCardChannel?: string;
   ownerCardTs?: string;
+  // Slack channel ID where the requester originally engaged. Absent for
+  // DM-initiated pairings; present when triggered from a room.
+  originChannelId?: string;
+  originChannelName?: string;
+  originThreadTs?: string;
 };
 
 const store = new Map<string, PendingRequest>();
