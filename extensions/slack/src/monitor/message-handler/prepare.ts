@@ -56,7 +56,7 @@ import {
   type SlackMonitorContext,
 } from "../context.js";
 import { resolveConversationLabel } from "../conversation.runtime.js";
-import { authorizeSlackDirectMessage } from "../dm-auth.js";
+import { authorizeSlackDirectMessage, authorizeSlackRoomUnknownSender } from "../dm-auth.js";
 import { resolveSlackRoomContextHints } from "../room-context.js";
 import { sendMessageSlack } from "../send.runtime.js";
 import { resolveSlackThreadStarter } from "../thread.js";
@@ -238,6 +238,7 @@ async function authorizeSlackInboundMessage(params: {
           accountId: account.accountId,
         });
       },
+      originalText: message.text ?? undefined,
       onDisabled: () => {
         logVerbose("slack: drop dm (dms disabled)");
       },
@@ -457,6 +458,36 @@ export async function prepareSlackMessage(params: {
     }))
   ) {
     return null;
+  }
+
+  // Room pairing trigger: when dmPolicy="pairing" and the bot is about to
+  // engage with an unknown sender in a room, hand off to the pairing flow
+  // instead of processing. Engagement-gated so unknown chatter in busy channels
+  // doesn't spam the operator. Bot messages skip this gate (already handled
+  // above).
+  if (isRoom && !isBotMessage) {
+    const engaged =
+      wasMentioned ||
+      explicitlyMentioned ||
+      willImplicitlyThreadReply ||
+      opts.source === "app_mention";
+    if (engaged) {
+      const pairingTriggered = await authorizeSlackRoomUnknownSender({
+        ctx,
+        accountId: account.accountId,
+        senderId,
+        senderName: senderNameForAuth,
+        allowFromLower,
+        channelId: message.channel,
+        channelName,
+        threadTs: message.thread_ts ?? undefined,
+        originalText: message.text ?? undefined,
+        log: logVerbose,
+      });
+      if (pairingTriggered) {
+        return null;
+      }
+    }
   }
 
   const allowTextCommands = shouldHandleTextCommands({

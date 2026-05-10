@@ -11,6 +11,15 @@ export type PairingRequestCreatedEvent = {
   senderId: string;
   senderName?: string;
   accountId: string;
+  /** Originating channel ID. Present when the pairing was triggered by a room
+   *  message; absent for DM-initiated pairings. */
+  channelId?: string;
+  /** Originating channel name (best-effort). */
+  channelName?: string;
+  /** Originating thread timestamp, if the message was posted in a thread. */
+  threadTs?: string;
+  /** First message text from the requester (truncated upstream). */
+  originalText?: string;
 };
 
 export type PairingRequestCreatedListener = (
