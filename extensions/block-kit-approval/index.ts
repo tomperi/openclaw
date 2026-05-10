@@ -60,6 +60,13 @@ export default definePluginEntry({
     );
 
     subscribeToPairingRequestCreated(async (event) => {
+      // Skip if we already issued a card for this code. Slack's
+      // upsertChannelPairingRequest already short-circuits onCreated for
+      // existing senders, but defending in depth keeps the operator from
+      // getting duplicate cards on plugin reloads or any future regressions.
+      if (getPending(event.code)) {
+        return;
+      }
       const request: PendingRequest = {
         reqId: event.code,
         senderId: event.senderId,

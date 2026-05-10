@@ -59,14 +59,12 @@ function buildOwnerCardBlocks(request: PendingRequest): (Block | KnownBlock)[] {
         style: "primary",
         text: { type: "plain_text", text: "✅ Approve" },
         action_id: `bka:approve:${request.reqId}`,
-        value: request.reqId,
       },
       {
         type: "button",
         style: "danger",
         text: { type: "plain_text", text: "❌ Deny" },
         action_id: `bka:deny:${request.reqId}`,
-        value: request.reqId,
       },
     ],
   });
