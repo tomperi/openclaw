@@ -3,7 +3,7 @@ import { subscribeToPairingRequestCreated } from "../slack/src/monitor/pairing-e
 import { sendMessageSlack } from "../slack/src/send.runtime.js";
 import { approvePairingCode } from "./allowlist-mutate.js";
 import { createInteractiveHandler, type InteractionOp } from "./interactive-handler.js";
-import { APPROVED_REPLY, DENIED_REPLY } from "./messages.js";
+import { APPROVED_REPLY, DENIED_REPLY, PENDING_REPLY } from "./messages.js";
 import { buildResolvedCardBlocks, sendOwnerApprovalCard } from "./owner-notify.js";
 import {
   attachOwnerCard,
@@ -90,6 +90,13 @@ export default definePluginEntry({
         api.logger.warn(
           `block-kit-approval: failed to send approval card for ${event.senderId}: ${formatError(err)}`,
         );
+      }
+      // Acknowledge to the requester so they aren't left wondering whether the
+      // message was received. For room-triggered pairings this lands as a
+      // thread reply under their original message; for DM-triggered pairings
+      // it's a regular DM reply.
+      if (request.originChannelId) {
+        await sendCustomerReply(api, request, PENDING_REPLY);
       }
     });
   },

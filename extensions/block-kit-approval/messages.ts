@@ -1,3 +1,6 @@
+export const PENDING_REPLY =
+  "Hi! I need approval from my operator before I can respond. I'll get back to you shortly.";
+
 export const APPROVED_REPLY =
   "You've been approved by the operator. Please send your original message again.";
 
