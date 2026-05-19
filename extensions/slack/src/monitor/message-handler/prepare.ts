@@ -480,7 +480,11 @@ export async function prepareSlackMessage(params: {
         allowFromLower,
         channelId: message.channel,
         channelName,
-        threadTs: message.thread_ts ?? undefined,
+        // Use the existing thread if the message was threaded; otherwise
+        // anchor the reply thread to the user's own message so the bot's
+        // approve/deny reply lands as a thread reply rather than a top-level
+        // channel post.
+        threadTs: message.thread_ts ?? message.ts,
         originalText: message.text ?? undefined,
         log: logVerbose,
       });
