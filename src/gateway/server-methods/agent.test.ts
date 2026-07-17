@@ -3533,6 +3533,32 @@ describe("gateway agent handler", () => {
     expect(callArgs.runContext?.messageChannel).toBe("voice");
   });
 
+  it("populates replyToMode on runContext for gateway agent-method runs", async () => {
+    mockMainSessionEntry({ sessionId: "reply-to-mode-session-id" });
+    mocks.agentCommand.mockResolvedValue({
+      payloads: [{ text: "ok" }],
+      meta: { durationMs: 100 },
+    });
+
+    await invokeAgent(
+      {
+        message: "thread this reply",
+        sessionKey: "agent:main:main",
+        deliver: false,
+        idempotencyKey: "reply-to-mode:req-1",
+      } as AgentParams,
+      { reqId: "reply-to-mode-1", client: backendGatewayClient() },
+    );
+
+    const callArgs = await waitForAgentCommandCall<{
+      runContext?: { replyToMode?: string };
+    }>();
+    // The bug: this leaks through as `undefined`, so the message tool's
+    // auto-threading falls back to "no thread" and replies post flat.
+    expect(callArgs.runContext?.replyToMode).toBeDefined();
+    expect(["off", "first", "all", "batched"]).toContain(callArgs.runContext?.replyToMode);
+  });
+
   it("accepts music generation internal events", async () => {
     primeMainAgentRun();
     mocks.agentCommand.mockClear();

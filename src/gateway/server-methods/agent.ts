@@ -63,6 +63,7 @@ import {
   resolveIngressWorkspaceOverrideForSpawnedRun,
 } from "../../agents/spawned-context.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
+import { resolveReplyToMode } from "../../auto-reply/reply/reply-threading.js";
 import { agentCommandFromIngress } from "../../commands/agent.js";
 import {
   evaluateSessionFreshness,
@@ -3317,6 +3318,12 @@ export const agentHandlers: GatewayRequestHandlers = {
                 groupChannel: resolvedGroupChannel,
                 groupSpace: resolvedGroupSpace,
                 currentThreadTs: resolvedThreadId != null ? String(resolvedThreadId) : undefined,
+                replyToMode: resolveReplyToMode(
+                  cfgForAgent ?? cfg,
+                  resolvedChannel,
+                  resolvedAccountId,
+                  sessionEntry?.chatType,
+                ),
               },
               ...(execApprovalFollowupElevatedDefaults
                 ? { bashElevated: execApprovalFollowupElevatedDefaults }
