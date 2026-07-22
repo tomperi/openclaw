@@ -1118,10 +1118,17 @@ export async function prepareSlackMessage(params: {
     return null;
   }
   const { rawBody, effectiveDirectMedia } = resolvedMessageContent;
-  const ackReaction = resolveAckReaction(cfg, route.agentId, {
-    channel: "slack",
-    accountId: account.accountId,
-  });
+  // Per-Slack-channel override first (channels.slack.channels[<id>].ackReaction): the field has
+  // always been typed on SlackChannelConfig but was never consulted. An empty string disables the
+  // ack for this channel only; undefined falls through to the account/global resolution.
+  const channelAckReactionOverride = channelConfig?.ackReaction;
+  const ackReaction =
+    channelAckReactionOverride !== undefined
+      ? channelAckReactionOverride.trim()
+      : resolveAckReaction(cfg, route.agentId, {
+          channel: "slack",
+          accountId: account.accountId,
+        });
   const ackReactionValue = ackReaction ?? "";
   const sourceRepliesAreToolOnly =
     resolveChannelMessageSourceReplyDeliveryMode({

@@ -860,6 +860,56 @@ describe("slack prepareSlackMessage inbound contract", () => {
     expect(await prepared.ackReactionPromise).toBe(true);
   });
 
+  it("honors a per-channel ackReaction override, with empty string disabling the ack", async () => {
+    const makeCtx = (channelAck: string | undefined) => {
+      const slackCtx = createInboundSlackCtx({
+        cfg: {
+          messages: { ackReaction: "eyes", ackReactionScope: "all" },
+          channels: {
+            slack: { enabled: true, groupPolicy: "open", replyToMode: "all" },
+          },
+        } as OpenClawConfig,
+        replyToMode: "all",
+        channelsConfig: {
+          C123: {
+            enabled: true,
+            ...(channelAck !== undefined ? { ackReaction: channelAck } : {}),
+          },
+        },
+      });
+      slackCtx.resolveUserName = async () => ({ name: "Alice" }) as any;
+      slackCtx.resolveChannelName = async () => ({ name: "general", type: "channel" });
+      return slackCtx;
+    };
+    const message = {
+      channel: "C123",
+      channel_type: "channel",
+      user: "U1",
+      text: "<@B1> hi",
+      ts: "2.000",
+    } as SlackMessageEvent;
+
+    // Empty override disables the ack for this channel only.
+    const disabled = await prepareMessageWith(makeCtx(""), defaultAccount, message);
+    assertPrepared(disabled);
+    expect(disabled.ackReactionValue).toBe("");
+    expect(disabled.ackReactionPromise).toBeNull();
+
+    // A non-empty override replaces the global emoji.
+    const overridden = await prepareMessageWith(
+      makeCtx("satellite_antenna"),
+      defaultAccount,
+      message,
+    );
+    assertPrepared(overridden);
+    expect(overridden.ackReactionValue).toBe("satellite_antenna");
+
+    // No override falls through to the global resolution.
+    const fallthrough = await prepareMessageWith(makeCtx(undefined), defaultAccount, message);
+    assertPrepared(fallthrough);
+    expect(fallthrough.ackReactionValue).toBe("eyes");
+  });
+
   it("defaults Slack to a static ack reaction while native thread status handles progress", async () => {
     const addReaction = vi.fn().mockResolvedValue({ ok: true });
     const slackCtx = createInboundSlackCtx({

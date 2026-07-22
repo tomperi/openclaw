@@ -23,6 +23,7 @@ export type SlackChannelConfigResolved = {
   users?: Array<string | number>;
   skills?: string[];
   systemPrompt?: string;
+  ackReaction?: string;
   matchKey?: string;
   matchSource?: ChannelMatchSource;
 };
@@ -37,6 +38,8 @@ type SlackChannelConfigEntry = {
   users?: Array<string | number>;
   skills?: string[];
   systemPrompt?: string;
+  /** Per-channel ack reaction override; empty string disables the ack for this channel. */
+  ackReaction?: string;
 };
 
 export type SlackChannelConfigEntries = Record<string, SlackChannelConfigEntry>;
@@ -133,6 +136,7 @@ export function resolveSlackChannelConfig(params: {
   const users = firstDefined(resolved.users, fallback?.users);
   const skills = firstDefined(resolved.skills, fallback?.skills);
   const systemPrompt = firstDefined(resolved.systemPrompt, fallback?.systemPrompt);
+  const ackReaction = firstDefined(resolved.ackReaction, fallback?.ackReaction);
   const result: SlackChannelConfigResolved = {
     allowed,
     requireMention,
@@ -143,6 +147,7 @@ export function resolveSlackChannelConfig(params: {
     users,
     skills,
     systemPrompt,
+    ackReaction,
   };
   return applyChannelMatchMeta(result, match);
 }
