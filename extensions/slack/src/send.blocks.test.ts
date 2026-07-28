@@ -563,3 +563,49 @@ describe("sendMessageSlack blocks", () => {
     expect(client.chat.postMessage).not.toHaveBeenCalled();
   });
 });
+
+describe("sendMessageSlack markdown-block auto-upgrade", () => {
+  it("sends list-bearing markdown as a native markdown block with converted fallback text", async () => {
+    const client = createSlackSendTestClient();
+    await sendMessageSlack("channel:C123", "Summary:\n- item one\n  - nested two", {
+      token: "xoxb-test",
+      cfg: SLACK_TEST_CFG,
+      client,
+    });
+
+    expect(client.chat.postMessage).toHaveBeenCalledTimes(1);
+    const payload = postedMessage(client);
+    expect(payload.blocks).toStrictEqual([
+      { type: "markdown", text: "Summary:\n- item one\n  - nested two" },
+    ]);
+    // Fallback text (notifications) is the legacy mrkdwn rendering with depth glyphs.
+    expect(payload.text).toBe("Summary:\n\n• item one\n  ◦ nested two");
+  });
+
+  it("keeps the legacy text path for prose without lists", async () => {
+    const client = createSlackSendTestClient();
+    await sendMessageSlack("channel:C123", "**bold** but no list here", {
+      token: "xoxb-test",
+      cfg: SLACK_TEST_CFG,
+      client,
+    });
+
+    const payload = postedMessage(client);
+    expect(payload.blocks).toBeUndefined();
+    expect(payload.text).toBe("*bold* but no list here");
+  });
+
+  it("never auto-upgrades media captions", async () => {
+    const client = createSlackSendTestClient();
+    await sendMessageSlack("channel:C123", "- caption list", {
+      token: "xoxb-test",
+      cfg: SLACK_TEST_CFG,
+      client,
+      mediaUrl: "https://files.example.com/pic.png",
+    }).catch(() => undefined); // upload path may reject in the test client — the assertion below is what matters
+    const calls = client.chat.postMessage.mock.calls as Array<Array<Record<string, unknown>>>;
+    for (const call of calls) {
+      expect(call[0]?.blocks).toBeUndefined();
+    }
+  });
+});

@@ -119,6 +119,31 @@ function buildSlackRenderOptions() {
   };
 }
 
+/** Slack's Block Kit `markdown` block caps text at 12k — stay under with margin. */
+const SLACK_MARKDOWN_BLOCK_TEXT_MAX = 11_500;
+const MARKDOWN_LIST_LINE_RE = /^[ \t]*(?:[-*+]|\d{1,3}[.)])[ \t]+\S/m;
+const MARKDOWN_TABLE_ROW_RE = /^[ \t]*\|.*\|[ \t]*$/m;
+
+/**
+ * Should this outbound markdown be sent as a Block Kit `markdown` block instead of mrkdwn text?
+ * Slack mrkdwn has NO list rendering — indented bullet text reads flat — while the `markdown`
+ * block renders true nested lists (Slack converts it to rich_text server-side) and accepts the
+ * mrkdwn-specific tokens we emit (<@mentions>, <url|label>, :emoji:) unchanged (verified against
+ * the live API 2026-07-28). Opt out for: no list content (legacy path is battle-tested), tables
+ * (the markdown block doesn't render them; tableMode conversion does), and texts beyond the
+ * block's 12k cap (must chunk through the text path).
+ */
+export function shouldUseSlackMarkdownBlock(markdown: string): boolean {
+  if (!markdown || markdown.length > SLACK_MARKDOWN_BLOCK_TEXT_MAX) {
+    return false;
+  }
+  const withoutCode = markdown.replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]*`/g, "");
+  if (MARKDOWN_TABLE_ROW_RE.test(withoutCode)) {
+    return false;
+  }
+  return MARKDOWN_LIST_LINE_RE.test(withoutCode);
+}
+
 export function markdownToSlackMrkdwn(
   markdown: string,
   options: SlackMarkdownOptions = {},

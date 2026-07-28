@@ -1,6 +1,7 @@
 // Slack tests cover format plugin behavior.
 import { describe, expect, it } from "vitest";
 import {
+  shouldUseSlackMarkdownBlock,
   markdownToSlackMrkdwn,
   markdownToSlackMrkdwnChunks,
   normalizeSlackOutboundText,
@@ -92,5 +93,30 @@ describe("escapeSlackMrkdwn", () => {
 describe("normalizeSlackOutboundText", () => {
   it("normalizes markdown for outbound send/update paths", () => {
     expect(normalizeSlackOutboundText(" **bold** ")).toBe("*bold*");
+  });
+});
+
+describe("shouldUseSlackMarkdownBlock", () => {
+  it("true for bullet and ordered markdown lists (incl. nested)", () => {
+    expect(shouldUseSlackMarkdownBlock("intro\n- item\n  - nested")).toBe(true);
+    expect(shouldUseSlackMarkdownBlock("* item\n  * nested")).toBe(true);
+    expect(shouldUseSlackMarkdownBlock("1. one\n2. two")).toBe(true);
+  });
+
+  it("false for plain prose, emphasis, and horizontal rules", () => {
+    expect(shouldUseSlackMarkdownBlock("just a sentence")).toBe(false);
+    expect(shouldUseSlackMarkdownBlock("**bold** and *italic* words")).toBe(false);
+    expect(shouldUseSlackMarkdownBlock("above\n---\nbelow")).toBe(false);
+    expect(shouldUseSlackMarkdownBlock("")).toBe(false);
+  });
+
+  it("false when list-looking lines only appear inside code", () => {
+    expect(shouldUseSlackMarkdownBlock("```\n- not a list\n```")).toBe(false);
+    expect(shouldUseSlackMarkdownBlock("inline `- code` only")).toBe(false);
+  });
+
+  it("false for tables (markdown block does not render them) and over-limit texts", () => {
+    expect(shouldUseSlackMarkdownBlock("- item\n| a | b |\n| - | - |")).toBe(false);
+    expect(shouldUseSlackMarkdownBlock(`- item\n${"x".repeat(12_000)}`)).toBe(false);
   });
 });

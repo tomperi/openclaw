@@ -34,7 +34,11 @@ import { resolveSlackAccount, resolveSlackOperationToken } from "./accounts.js";
 import { buildSlackBlocksFallbackText } from "./blocks-fallback.js";
 import { validateSlackBlocksArray } from "./blocks-input.js";
 import { createSlackTokenCacheKey, createSlackWebClient, getSlackWriteClient } from "./client.js";
-import { markdownToSlackMrkdwnChunks } from "./format.js";
+import {
+  markdownToSlackMrkdwn,
+  markdownToSlackMrkdwnChunks,
+  shouldUseSlackMarkdownBlock,
+} from "./format.js";
 import { SLACK_TEXT_LIMIT } from "./limits.js";
 import { loadOutboundMediaFromUrl } from "./runtime-api.js";
 import { recordSlackThreadParticipation } from "./sent-thread-cache.js";
@@ -1262,12 +1266,24 @@ async function sendMessageSlackQueuedInner(params: {
     await opts.onDeliveryResult?.(result);
     return result;
   };
-  if (blocks) {
+  // Auto-upgrade list-bearing markdown to a native `markdown` block (2026-07-28): mrkdwn text has
+  // no list rendering, so nested bullets read flat. Slack converts the block to rich_text
+  // server-side (true • ◦ ▪ nesting) and accepts our mrkdwn tokens (<@mentions>, <url|label>,
+  // :emoji:) unchanged. The converted mrkdwn becomes the notification fallback text. Explicit
+  // caller blocks, media captions, tables, and over-limit texts keep the legacy text path
+  // (see shouldUseSlackMarkdownBlock).
+  let effectiveBlocks = blocks;
+  let autoMarkdownFallback: string | undefined;
+  if (!blocks && !opts.mediaUrl && shouldUseSlackMarkdownBlock(trimmedMessage)) {
+    effectiveBlocks = [{ type: "markdown", text: trimmedMessage } as unknown as Block];
+    autoMarkdownFallback = markdownToSlackMrkdwn(trimmedMessage);
+  }
+  if (effectiveBlocks) {
     if (opts.mediaUrl) {
       throw new Error("Slack send does not support blocks with mediaUrl");
     }
     const fallbackText = truncateSlackText(
-      trimmedMessage || buildSlackBlocksFallbackText(blocks),
+      autoMarkdownFallback ?? (trimmedMessage || buildSlackBlocksFallbackText(effectiveBlocks)),
       SLACK_TEXT_LIMIT,
     );
     await opts.onPlatformSendDispatch?.();
@@ -1278,7 +1294,7 @@ async function sendMessageSlackQueuedInner(params: {
       threadTs: opts.threadTs,
       replyBroadcast: opts.replyBroadcast,
       identity,
-      blocks,
+      blocks: effectiveBlocks,
       metadata: opts.metadata,
       unfurl,
     });
