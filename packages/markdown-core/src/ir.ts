@@ -351,6 +351,11 @@ function appendNestedListSeparator(state: RenderState) {
   }
 }
 
+// Depth-distinct bullet glyphs mirroring native rich-text lists (Slack, most UIs): • then ◦ then ▪.
+// Plain-text renderings can't rely on indentation alone — proportional fonts make a 2-space indent
+// nearly invisible, so same-glyph nested items read as one flat list.
+const BULLET_GLYPHS = ["•", "◦", "▪"] as const;
+
 function appendListPrefix(state: RenderState) {
   const stack = state.env.listStack;
   const top = stack[stack.length - 1];
@@ -358,8 +363,10 @@ function appendListPrefix(state: RenderState) {
     return;
   }
   top.index += 1;
-  const indent = "  ".repeat(Math.max(0, stack.length - 1));
-  const prefix = top.type === "ordered" ? `${top.index}. ` : "• ";
+  const depth = Math.max(0, stack.length - 1);
+  const indent = "  ".repeat(depth);
+  const bullet = BULLET_GLYPHS[Math.min(depth, BULLET_GLYPHS.length - 1)];
+  const prefix = top.type === "ordered" ? `${top.index}. ` : `${bullet} `;
   state.text += `${indent}${prefix}`;
 }
 

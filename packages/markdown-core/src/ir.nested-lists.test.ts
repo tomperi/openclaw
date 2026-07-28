@@ -10,7 +10,7 @@
  * to plain text for messaging platforms, we expect:
  *
  * 1. **Indentation**: Each nesting level adds 2 spaces of indentation
- * 2. **Bullet markers**: Bullet lists use "•" (Unicode bullet)
+ * 2. **Bullet markers**: Bullet lists use depth-distinct glyphs — "•", nested "◦", deeper "▪"
  * 3. **Ordered markers**: Ordered lists use "N. " format
  * 4. **Line endings**: Each list item ends with a single newline
  * 5. **List termination**: A trailing newline after the entire list (for top-level only)
@@ -51,13 +51,13 @@ describe("Nested Lists - 2 Level Nesting", () => {
 
     // Expected output:
     // • Item 1
-    //   • Nested 1.1
-    //   • Nested 1.2
+    //   ◦ Nested 1.1
+    //   ◦ Nested 1.2
     // • Item 2
     // Note: markdownToIR trims trailing whitespace, so no final newline
     const expected = `• Item 1
-  • Nested 1.1
-  • Nested 1.2
+  ◦ Nested 1.1
+  ◦ Nested 1.2
 • Item 2`;
 
     expect(result.text).toBe(expected);
@@ -94,12 +94,12 @@ describe("Nested Lists - 2 Level Nesting", () => {
 
     // Expected output:
     // 1. Ordered 1
-    //   • Bullet sub 1
-    //   • Bullet sub 2
+    //   ◦ Bullet sub 1
+    //   ◦ Bullet sub 2
     // 2. Ordered 2
     const expected = `1. Ordered 1
-  • Bullet sub 1
-  • Bullet sub 2
+  ◦ Bullet sub 1
+  ◦ Bullet sub 2
 2. Ordered 2`;
 
     expect(result.text).toBe(expected);
@@ -133,12 +133,12 @@ describe("Nested Lists - 3+ Level Deep Nesting", () => {
 
     // Expected output with progressive indentation:
     // • Level 1
-    //   • Level 2
-    //     • Level 3
+    //   ◦ Level 2
+    //     ▪ Level 3
     // • Back to 1
     const expected = `• Level 1
-  • Level 2
-    • Level 3
+  ◦ Level 2
+    ▪ Level 3
 • Back to 1`;
 
     expect(result.text).toBe(expected);
@@ -154,9 +154,9 @@ describe("Nested Lists - 3+ Level Deep Nesting", () => {
     const result = markdownToIR(input);
 
     const expected = `• L1
-  • L2
-    • L3
-      • L4
+  ◦ L2
+    ▪ L3
+      ▪ L4
 • Back`;
 
     expect(result.text).toBe(expected);
@@ -173,10 +173,10 @@ describe("Nested Lists - 3+ Level Deep Nesting", () => {
     const result = markdownToIR(input);
 
     const expected = `• A1
-  • B1
-    • C1
-    • C2
-  • B2
+  ◦ B1
+    ▪ C1
+    ▪ C2
+  ◦ B2
 • A2`;
 
     expect(result.text).toBe(expected);
@@ -195,7 +195,7 @@ describe("Nested Lists - Mixed Nesting", () => {
 
     const expected = `• Bullet 1
   1. Ordered 1.1
-    • Deep bullet
+    ▪ Deep bullet
   2. Ordered 1.2
 • Bullet 2`;
 
@@ -212,9 +212,9 @@ describe("Nested Lists - Mixed Nesting", () => {
     const result = markdownToIR(input);
 
     const expected = `1. First
-  • Sub bullet
+  ◦ Sub bullet
     1. Deep ordered
-  • Another bullet
+  ◦ Another bullet
 2. Second`;
 
     expect(result.text).toBe(expected);
@@ -240,8 +240,8 @@ describe("Nested Lists - Newline Handling", () => {
     const result = markdownToIR(input);
 
     // Between B and C there should be exactly one newline
-    expect(result.text).toContain("  • B\n  • C");
-    expect(result.text).not.toContain("  • B\n\n  • C");
+    expect(result.text).toContain("  ◦ B\n  ◦ C");
+    expect(result.text).not.toContain("  ◦ B\n\n  ◦ C");
   });
 
   it("properly terminates top-level list (trimmed output)", () => {
@@ -269,7 +269,7 @@ describe("Nested Lists - Edge Cases", () => {
     const result = markdownToIR(input);
 
     // Should still render the nested item with proper indentation
-    expect(result.text).toContain("  • Nested only");
+    expect(result.text).toContain("  ◦ Nested only");
   });
 
   it("handles nested list as first child of parent item", () => {
@@ -280,7 +280,7 @@ describe("Nested Lists - Edge Cases", () => {
     const result = markdownToIR(input);
 
     // The child should appear indented under the parent
-    expect(result.text).toContain("• Parent text\n  • Child");
+    expect(result.text).toContain("• Parent text\n  ◦ Child");
   });
 
   it("handles sibling nested lists at same level", () => {
@@ -292,9 +292,9 @@ describe("Nested Lists - Edge Cases", () => {
     const result = markdownToIR(input);
 
     const expected = `• A
-  • A1
+  ◦ A1
 • B
-  • B1`;
+  ◦ B1`;
 
     expect(result.text).toBe(expected);
   });
@@ -357,7 +357,7 @@ second paragraph
 
     expect(result.text).toBe(`• parent
 
-  • child
+  ◦ child
 • next`);
     expect(result.text).not.toContain("\n\n\n");
   });

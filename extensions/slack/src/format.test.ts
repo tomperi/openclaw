@@ -51,7 +51,7 @@ describe("markdownToSlackMrkdwn", () => {
   it("handles nested list items", () => {
     const res = markdownToSlackMrkdwn("- item\n  - nested");
     // markdown-it correctly parses this as a nested list
-    expect(res).toBe("• item\n  • nested");
+    expect(res).toBe("• item\n  ◦ nested");
   });
 
   it("handles complex message with multiple elements", () => {
