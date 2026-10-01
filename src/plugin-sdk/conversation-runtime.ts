@@ -57,6 +57,7 @@ export { testing } from "../infra/outbound/session-binding-service.js";
 export { resolvePairingIdLabel } from "../pairing/pairing-labels.js";
 export { buildPairingReply } from "../pairing/pairing-messages.js";
 export {
+  approveChannelPairingCode,
   readChannelAllowFromStore,
   upsertChannelPairingRequest,
 } from "../pairing/pairing-store.js";
