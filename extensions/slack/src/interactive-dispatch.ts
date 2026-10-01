@@ -49,6 +49,20 @@ type SlackModalInteractivePayload = {
   triggerId?: string;
 };
 
+type SlackEntityDetailsInteractivePayload = {
+  kind: "entity_details_requested";
+  data: string;
+  namespace: string;
+  payload: string;
+  externalRef: { id: string; type: string };
+  entityUrl?: string;
+  appUnfurlUrl?: string;
+  triggerId: string;
+  userLocale?: string;
+  messageTs?: string;
+  threadTs?: string;
+};
+
 export type SlackInteractiveHandlerContext = {
   channel: "slack";
   accountId: string;
@@ -61,7 +75,10 @@ export type SlackInteractiveHandlerContext = {
   auth: {
     isAuthorizedSender: boolean;
   };
-  interaction: SlackBlockInteractivePayload | SlackModalInteractivePayload;
+  interaction:
+    | SlackBlockInteractivePayload
+    | SlackModalInteractivePayload
+    | SlackEntityDetailsInteractivePayload;
   respond: {
     acknowledge: () => Promise<void>;
     reply: (params: { text: string; responseType?: "ephemeral" | "in_channel" }) => Promise<void>;
