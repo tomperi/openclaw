@@ -213,7 +213,7 @@ describe("markdownToTelegramRichBlocks", () => {
       return;
     }
     expect(quote.blocks[0]?.type).toBe("list");
-    expect(rendered.plainText).toBe("• parent\n  • child");
+    expect(rendered.plainText).toBe("• parent\n  ◦ child");
   });
 
   it("keeps rich inline formatting inside native list items", () => {

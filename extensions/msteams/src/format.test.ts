@@ -73,7 +73,7 @@ describe("formatMSTeamsMarkdown", () => {
     [
       "falls nested lists back without treating indentation as code",
       "- parent\n    - child",
-      "• parent\n  • child",
+      "• parent\n  ◦ child",
     ],
     [
       "keeps inline code delimiters that protect embedded backticks",

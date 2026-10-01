@@ -2,6 +2,11 @@ import { describe, it, expect } from "vitest";
 import { markdownToIR } from "./ir.js";
 
 describe("nested lists", () => {
+  it("uses a distinct bullet glyph per nesting depth", () => {
+    const result = markdownToIR("- one\n  - two\n    - three\n      - four");
+    expect(result.text).toBe("• one\n  ◦ two\n    ▪ three\n      ▪ four");
+  });
+
   it("records parser-owned item spans and list ancestry", () => {
     const result = markdownToIR("- parent\n  - child\n- next\n# Heading");
     const items = [...(result.listItems ?? [])].toSorted(
@@ -31,25 +36,25 @@ describe("nested lists", () => {
     [
       "bullet depth and sibling transitions",
       "- A1\n  - B1\n    - C1\n    - C2\n  - B2\n- A2",
-      "• A1\n  • B1\n    • C1\n    • C2\n  • B2\n• A2",
+      "• A1\n  ◦ B1\n    ▪ C1\n    ▪ C2\n  ◦ B2\n• A2",
     ],
     [
       "bullet > ordered > bullet",
       "- Bullet 1\n  1. Ordered 1.1\n     - Deep bullet\n  2. Ordered 1.2\n- Bullet 2",
-      "• Bullet 1\n  1. Ordered 1.1\n    • Deep bullet\n  2. Ordered 1.2\n• Bullet 2",
+      "• Bullet 1\n  1. Ordered 1.1\n    ▪ Deep bullet\n  2. Ordered 1.2\n• Bullet 2",
     ],
     [
       "ordered > bullet > ordered",
       "1. First\n   - Sub bullet\n     1. Deep ordered\n   - Another bullet\n2. Second",
-      "1. First\n  • Sub bullet\n    1. Deep ordered\n  • Another bullet\n2. Second",
+      "1. First\n  ◦ Sub bullet\n    1. Deep ordered\n  ◦ Another bullet\n2. Second",
     ],
-    ["sibling nested lists", "- A\n  - A1\n- B\n  - B1", "• A\n  • A1\n• B\n  • B1"],
+    ["sibling nested lists", "- A\n  - A1\n- B\n  - B1", "• A\n  ◦ A1\n• B\n  ◦ B1"],
   ])("renders %s", (_name, markdown, expected) => {
     expect(markdownToIR(markdown).text).toBe(expected);
   });
 
   it("handles empty parent with nested items", () => {
-    expect(markdownToIR("-\n  - Nested only\n- Normal").text).toContain("  • Nested only");
+    expect(markdownToIR("-\n  - Nested only\n- Normal").text).toContain("  ◦ Nested only");
   });
 });
 
@@ -95,7 +100,7 @@ describe("list paragraph spacing", () => {
     [
       "loose nested bullet lists",
       "- parent\n\n  - child\n\n- next",
-      "• parent\n\n  • child\n• next",
+      "• parent\n\n  ◦ child\n• next",
     ],
     [
       "following paragraph",
