@@ -8,6 +8,7 @@ const registrations = vi.hoisted(() => ({
   assistant: vi.fn(),
   channel: vi.fn(),
   channelIdChanged: vi.fn(),
+  entity: vi.fn(),
   home: vi.fn(),
   interaction: vi.fn(),
   member: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock("./events/channels.js", () => ({
   registerSlackChannelEvents: registrations.channel,
   registerSlackChannelIdChangedEvent: registrations.channelIdChanged,
 }));
+vi.mock("./events/entities.js", () => ({ registerSlackEntityEvents: registrations.entity }));
 vi.mock("./events/home.js", () => ({ registerSlackHomeEvents: registrations.home }));
 vi.mock("./events/interactions.js", () => ({
   registerSlackInteractionEvents: registrations.interaction,
@@ -69,6 +71,7 @@ describe("Slack event registration", () => {
     expect(registrations.agent).not.toHaveBeenCalled();
     expect(registrations.interaction).toHaveBeenCalledOnce();
     expect(registrations.assistant).not.toHaveBeenCalled();
+    expect(registrations.entity).not.toHaveBeenCalled();
   });
 
   it("adds workspace-only listeners without duplicating the common event set", () => {
