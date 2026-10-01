@@ -500,6 +500,26 @@ export function chunkSlackMrkdwnText(text: string, limit: number): string[] {
   return chunks;
 }
 
+/** Slack's Block Kit `markdown` block caps text at 12k; stay under with margin. */
+export const SLACK_MARKDOWN_BLOCK_TEXT_MAX = 11_500;
+const MARKDOWN_LIST_LINE_RE = /^[ \t]*(?:[-*+]|\d{1,3}[.)])[ \t]+\S/m;
+const MARKDOWN_TABLE_ROW_RE = /^[ \t]*\|.*\|[ \t]*$/m;
+
+/**
+ * True when outbound markdown should go as a `markdown` block: mrkdwn text has no list rendering.
+ * Tables and texts over the block cap keep the text path.
+ */
+export function shouldUseSlackMarkdownBlock(markdown: string): boolean {
+  if (!markdown || markdown.length > SLACK_MARKDOWN_BLOCK_TEXT_MAX) {
+    return false;
+  }
+  const withoutCode = markdown.replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]*`/g, "");
+  if (MARKDOWN_TABLE_ROW_RE.test(withoutCode)) {
+    return false;
+  }
+  return MARKDOWN_LIST_LINE_RE.test(withoutCode);
+}
+
 export function markdownToSlackMrkdwnChunks(
   markdown: string,
   limit: number,

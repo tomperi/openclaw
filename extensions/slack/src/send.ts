@@ -45,7 +45,12 @@ import {
 } from "./client.js";
 import { assertSlackDetachedTargetAllowed } from "./detached-target-admission.js";
 import { getSlackWebApiErrorData } from "./errors.js";
-import { chunkSlackMrkdwnText, markdownToSlackMrkdwnChunks } from "./format.js";
+import {
+  chunkSlackMrkdwnText,
+  markdownToSlackMrkdwnChunks,
+  SLACK_MARKDOWN_BLOCK_TEXT_MAX,
+  shouldUseSlackMarkdownBlock,
+} from "./format.js";
 import { SLACK_EDIT_TEXT_MAX_BYTES, SLACK_TEXT_LIMIT } from "./limits.js";
 import type { SlackEventScope } from "./monitor/event-scope.js";
 import { hasSlackNativeDataBlock, isSlackInvalidBlocksError } from "./native-data-blocks.js";
@@ -893,7 +898,20 @@ export async function sendMessageSlack(
   if (!eventScope) {
     assertSlackDetachedTargetAllowed(account.accountId, recipient.teamId);
   }
-  const blocks = opts.blocks == null ? undefined : validateSlackBlocksArray(opts.blocks);
+  const explicitBlocks = opts.blocks == null ? undefined : validateSlackBlocksArray(opts.blocks);
+  // Slack converts a `markdown` block to rich_text server-side, so nested lists render natively.
+  const autoMarkdownBlock =
+    !explicitBlocks &&
+    !opts.mediaUrl &&
+    !opts.textIsSlackMrkdwn &&
+    !opts.textIsSlackPlainText &&
+    shouldUseSlackMarkdownBlock(trimmedMessage);
+  const blocks = autoMarkdownBlock
+    ? [{ type: "markdown", text: trimmedMessage } as unknown as Block]
+    : explicitBlocks;
+  const autoMarkdownFallback = autoMarkdownBlock
+    ? markdownToSlackMrkdwnChunks(trimmedMessage, SLACK_MARKDOWN_BLOCK_TEXT_MAX).join("\n")
+    : undefined;
   if (!normalizedMessage && !opts.mediaUrl && !blocks) {
     throw new Error("Slack send requires text, blocks, or media");
   }
@@ -908,6 +926,7 @@ export async function sendMessageSlack(
       cfg,
       account,
       blocks,
+      autoMarkdownFallback,
       delivery,
     }).catch((err: unknown) => {
       throw enrichSlackWebApiError(err);
@@ -928,9 +947,10 @@ async function sendMessageSlackQueued(params: {
   cfg: OpenClawConfig;
   account: ReturnType<typeof resolveSlackAccount>;
   blocks?: (Block | KnownBlock)[];
+  autoMarkdownFallback?: string;
   delivery: SlackResolvedDelivery;
 }): Promise<SlackSendResult> {
-  const { opts, cfg, account, blocks, trimmedMessage, delivery } = params;
+  const { opts, cfg, account, blocks, trimmedMessage, delivery, autoMarkdownFallback } = params;
   const { client, identity, recipient, unfurl } = delivery;
   if (opts.replyBroadcast && opts.mediaUrl) {
     throw new Error("Slack replyBroadcast is only supported for text or block thread replies.");
@@ -1016,7 +1036,9 @@ async function sendMessageSlackQueued(params: {
       ].join("\n\n")
     : completeBlockFallbackText;
   const blockAccessibilityText = blocks
-    ? (orderedBlockDeliveryPlan?.accessibilityText ?? rawBlockAccessibilityText)
+    ? (autoMarkdownFallback ??
+      orderedBlockDeliveryPlan?.accessibilityText ??
+      rawBlockAccessibilityText)
     : undefined;
   let pendingBlockFallback = orderedBlockDeliveryPlan?.skipOriginalBlocks
     ? orderedBlockDeliveryPlan

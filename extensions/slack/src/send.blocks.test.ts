@@ -566,3 +566,42 @@ describe("sendMessageSlack identity and target fallback", () => {
     expect(client.chat.postMessage).toHaveBeenCalledOnce();
   });
 });
+
+describe("sendMessageSlack markdown-block auto-upgrade", () => {
+  it("sends list-bearing markdown as a native markdown block with converted fallback text", async () => {
+    await send("Summary:\n- item one\n  - nested two");
+
+    expect(client.chat.postMessage).toHaveBeenCalledTimes(1);
+    const payload = postedMessage();
+    expect(payload.blocks).toStrictEqual([
+      { type: "markdown", text: "Summary:\n- item one\n  - nested two" },
+    ]);
+    expect(payload.text).toBe("Summary:\n\n• item one\n  ◦ nested two");
+  });
+
+  it("keeps the legacy text path for prose without lists", async () => {
+    await send("**bold** but no list here");
+
+    const payload = postedMessage();
+    expect(payload.blocks).toBeUndefined();
+    expect(payload.text).toBe("*bold* but no list here");
+  });
+
+  it("never auto-upgrades media captions", async () => {
+    await send("- caption list", { mediaUrl: "https://files.example.com/pic.png" }).catch(
+      () => undefined,
+    );
+    const calls = client.chat.postMessage.mock.calls as Array<Array<Record<string, unknown>>>;
+    for (const call of calls) {
+      expect(call[0]?.blocks).toBeUndefined();
+    }
+  });
+
+  it("keeps caller-flagged mrkdwn and plain text on the text path", async () => {
+    for (const flag of ["textIsSlackMrkdwn", "textIsSlackPlainText"] as const) {
+      client.chat.postMessage.mockClear();
+      await send("- item\n  - nested", { [flag]: true });
+      expect(postedMessage().blocks).toBeUndefined();
+    }
+  });
+});
