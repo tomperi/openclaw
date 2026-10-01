@@ -1780,6 +1780,53 @@ describe("slack prepareSlackMessage inbound contract", () => {
     expect(await prepared.ackReactionPromise).toBe(true);
   });
 
+  it("honors a per-channel ackReaction override, with empty string disabling the ack", async () => {
+    const makeCtx = (channelAck: string | undefined) => {
+      const slackCtx = createInboundSlackCtx({
+        cfg: {
+          messages: { ackReaction: "eyes", ackReactionScope: "all" },
+          channels: {
+            slack: { enabled: true, groupPolicy: "open", replyToMode: "all" },
+          },
+        } as OpenClawConfig,
+        replyToMode: "all",
+        channelsConfig: {
+          C123: {
+            enabled: true,
+            ...(channelAck !== undefined ? { ackReaction: channelAck } : {}),
+          },
+        },
+      });
+      slackCtx.resolveUserName = async () => ({ name: "Alice" });
+      slackCtx.resolveChannelName = async () => ({ name: "general", type: "channel" });
+      return slackCtx;
+    };
+    const message = {
+      channel: "C123",
+      channel_type: "channel",
+      user: "U1",
+      text: "<@B1> hi",
+      ts: "2.000",
+    } as SlackMessageEvent;
+
+    const disabled = await prepareMessageWith(makeCtx(""), defaultAccount, message);
+    assertPrepared(disabled);
+    expect(disabled.ackReactionValue).toBe("");
+    expect(disabled.ackReactionPromise).toBeNull();
+
+    const overridden = await prepareMessageWith(
+      makeCtx("satellite_antenna"),
+      defaultAccount,
+      message,
+    );
+    assertPrepared(overridden);
+    expect(overridden.ackReactionValue).toBe("satellite_antenna");
+
+    const fallthrough = await prepareMessageWith(makeCtx(undefined), defaultAccount, message);
+    assertPrepared(fallthrough);
+    expect(fallthrough.ackReactionValue).toBe("eyes");
+  });
+
   it.each([
     { label: "automatic/default status", visibleReplies: "automatic", statusEnabled: undefined },
     { label: "automatic/disabled status", visibleReplies: "automatic", statusEnabled: false },

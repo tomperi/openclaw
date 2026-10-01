@@ -104,6 +104,7 @@ export function resolveSlackChannelConfig(params: {
   const skills = firstDefined(resolved.skills, fallback?.skills);
   const systemPrompt = firstDefined(resolved.systemPrompt, fallback?.systemPrompt);
   const presenceEvents = firstDefined(resolved.presenceEvents, fallback?.presenceEvents);
+  const ackReaction = firstDefined(resolved.ackReaction, fallback?.ackReaction);
   const result: SlackChannelConfigResolved = {
     allowed,
     requireMention,
@@ -116,6 +117,7 @@ export function resolveSlackChannelConfig(params: {
     skills,
     systemPrompt,
     presenceEvents,
+    ackReaction,
   };
   return applyChannelMatchMeta(result, match);
 }

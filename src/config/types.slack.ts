@@ -53,6 +53,8 @@ export type SlackChannelConfig = {
   skills?: string[];
   /** Optional system prompt for this channel. */
   systemPrompt?: string;
+  /** Ack reaction for this channel; an empty string disables the ack here. */
+  ackReaction?: string;
   /** Slack presence polling and agent wake mode for this channel. */
   presenceEvents?: SlackPresenceEventsConfig;
 };
