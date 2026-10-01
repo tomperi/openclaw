@@ -5,6 +5,7 @@ import {
   registerSlackChannelEvents,
   registerSlackChannelIdChangedEvent,
 } from "./events/channels.js";
+import { registerSlackEntityEvents } from "./events/entities.js";
 import { registerSlackHomeEvents } from "./events/home.js";
 import { registerSlackInteractionEvents } from "./events/interactions.js";
 import { registerSlackMemberEvents } from "./events/members.js";
@@ -44,4 +45,5 @@ export function registerSlackWorkspaceEvents(params: {
   });
   registerSlackAgentEvents({ ctx: params.ctx, trackEvent: params.trackEvent });
   registerSlackAssistantEvents({ ctx: params.ctx, trackEvent: params.trackEvent });
+  registerSlackEntityEvents({ ctx: params.ctx, trackEvent: params.trackEvent });
 }
