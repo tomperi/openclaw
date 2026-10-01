@@ -1205,3 +1205,61 @@ describe("sendMessageSlack blocks", () => {
   });
 });
 /* oxlint-disable max-lines -- TODO: split this grandfathered oversized file. */
+
+describe("sendMessageSlack markdown-block auto-upgrade", () => {
+  it("sends list-bearing markdown as a native markdown block with converted fallback text", async () => {
+    const client = createSlackSendTestClient();
+    await sendMessageSlack("channel:C123", "Summary:\n- item one\n  - nested two", {
+      token: "xoxb-test",
+      cfg: SLACK_TEST_CFG,
+      client,
+    });
+
+    expect(client.chat.postMessage).toHaveBeenCalledTimes(1);
+    const payload = postedMessage(client);
+    expect(payload.blocks).toStrictEqual([
+      { type: "markdown", text: "Summary:\n- item one\n  - nested two" },
+    ]);
+    expect(payload.text).toBe("Summary:\n\n• item one\n  ◦ nested two");
+  });
+
+  it("keeps the legacy text path for prose without lists", async () => {
+    const client = createSlackSendTestClient();
+    await sendMessageSlack("channel:C123", "**bold** but no list here", {
+      token: "xoxb-test",
+      cfg: SLACK_TEST_CFG,
+      client,
+    });
+
+    const payload = postedMessage(client);
+    expect(payload.blocks).toBeUndefined();
+    expect(payload.text).toBe("*bold* but no list here");
+  });
+
+  it("never auto-upgrades media captions", async () => {
+    const client = createSlackSendTestClient();
+    await sendMessageSlack("channel:C123", "- caption list", {
+      token: "xoxb-test",
+      cfg: SLACK_TEST_CFG,
+      client,
+      mediaUrl: "https://files.example.com/pic.png",
+    }).catch(() => undefined);
+    const calls = client.chat.postMessage.mock.calls as Array<Array<Record<string, unknown>>>;
+    for (const call of calls) {
+      expect(call[0]?.blocks).toBeUndefined();
+    }
+  });
+
+  it("keeps caller-flagged mrkdwn and plain text on the text path", async () => {
+    for (const flag of ["textIsSlackMrkdwn", "textIsSlackPlainText"] as const) {
+      const client = createSlackSendTestClient();
+      await sendMessageSlack("channel:C123", "- item\n  - nested", {
+        token: "xoxb-test",
+        cfg: SLACK_TEST_CFG,
+        client,
+        [flag]: true,
+      });
+      expect(postedMessage(client).blocks).toBeUndefined();
+    }
+  });
+});
