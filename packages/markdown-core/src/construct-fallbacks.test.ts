@@ -203,7 +203,7 @@ describe("applyConstructFallbacks", () => {
 
   it("recognizes task items nested on the same source line", () => {
     const ir = markdownToTaskIR("- - [x] done");
-    expect(applyConstructFallbacks(ir, withSupport("taskList", "strip")).text).toBe("• \n  • done");
+    expect(applyConstructFallbacks(ir, withSupport("taskList", "strip")).text).toBe("• \n  ◦ done");
   });
 
   it("recognizes multiline task-list markers", () => {

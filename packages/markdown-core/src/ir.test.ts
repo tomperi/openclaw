@@ -578,7 +578,7 @@ it("keeps unsorted and duplicated metadata independent across chunks", () => {
 
 describe("nested lists", () => {
   it("handles empty parent with nested items", () => {
-    expect(markdownToIR("-\n  - Nested only\n- Normal").text).toContain("  • Nested only");
+    expect(markdownToIR("-\n  - Nested only\n- Normal").text).toContain("  ◦ Nested only");
   });
 });
 
@@ -607,7 +607,7 @@ describe("list paragraph spacing", () => {
     [
       "loose nested bullet lists",
       "- parent\n\n  - child\n\n- next",
-      "• parent\n\n  • child\n• next",
+      "• parent\n\n  ◦ child\n• next",
     ],
   ])("separates %s", (_name, markdown, expected) => {
     expect(markdownToIR(markdown).text).toBe(expected);
@@ -791,5 +791,12 @@ describe("applyMarkdownTextEdits", () => {
 
     expect(result.text).toBe("AbXY");
     expect([1, 2].map(result.mapOffset)).toEqual([2, 4]);
+  });
+});
+
+describe("nested list bullet glyphs", () => {
+  it("uses a distinct bullet glyph per nesting depth", () => {
+    const result = markdownToIR("- one\n  - two\n    - three\n      - four");
+    expect(result.text).toBe("• one\n  ◦ two\n    ▪ three\n      ▪ four");
   });
 });

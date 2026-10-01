@@ -635,6 +635,9 @@ function appendNestedListSeparator(state: RenderState) {
   }
 }
 
+// Proportional fonts make a 2-space indent near-invisible, so depth needs its own glyph.
+const BULLET_GLYPHS = ["•", "◦", "▪"] as const;
+
 function appendListPrefix(
   state: RenderState,
   isTask: boolean,
@@ -646,8 +649,10 @@ function appendListPrefix(
   }
   top.index += 1;
   const itemStart = state.text.length;
-  const indent = "  ".repeat(Math.max(0, stack.length - 1));
-  const prefix = top.type === "ordered" ? `${top.index}. ` : "• ";
+  const depth = Math.max(0, stack.length - 1);
+  const indent = "  ".repeat(depth);
+  const bullet = BULLET_GLYPHS[Math.min(depth, BULLET_GLYPHS.length - 1)];
+  const prefix = top.type === "ordered" ? `${top.index}. ` : `${bullet} `;
   state.text += indent;
   const markerStart = state.text.length;
   state.text += prefix;
