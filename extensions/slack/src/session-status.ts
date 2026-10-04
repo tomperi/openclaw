@@ -20,6 +20,44 @@ type SlackSessionResponse = WebAPICallResult & {
 const MISSING_STOP_SUBSCRIPTION = "missing_agent_session_stopped_event_subscription";
 let warnedMissingStopSubscription = false;
 
+// Apps without Agent View cannot use agent sessions, but Slack's assistant thread
+// loading status accepts chat:write in any thread.
+const NOT_AGENT_APP_CODES = new Set(["not_agent_app", "missing_scope", "unknown_method"]);
+const FALLBACK_STATUS_TEXT: Record<SlackSessionStatus, string> = {
+  processing: "is thinking...",
+  suspended: "is waiting for approval...",
+  active: "",
+};
+let agentSessionsUnsupported = false;
+
+function slackErrorCode(error: unknown): string | undefined {
+  const data = (error as { data?: { error?: unknown } } | undefined)?.data;
+  return typeof data?.error === "string" ? data.error : undefined;
+}
+
+async function setAssistantThreadStatus(params: {
+  client: WebClient;
+  channelId: string;
+  threadTs: string;
+  status: SlackSessionStatus;
+  token?: string;
+}): Promise<{ ok: true } | { ok: false }> {
+  try {
+    const response = await params.client.apiCall("assistant.threads.setStatus", {
+      channel_id: params.channelId,
+      thread_ts: params.threadTs,
+      status: FALLBACK_STATUS_TEXT[params.status],
+      ...(params.token ? { token: params.token } : {}),
+    });
+    return response.ok ? { ok: true } : { ok: false };
+  } catch (error) {
+    logVerbose(
+      `slack thread status update failed for channel ${params.channelId}: ${formatSlackError(error)}`,
+    );
+    return { ok: false };
+  }
+}
+
 // The installed WebClient supports these public methods through apiCall; the
 // dedicated method types arrive in 8.1.x after its release-age gate clears.
 export async function setSlackSessionStatus(params: {
@@ -41,6 +79,9 @@ export async function setSlackSessionStatus(params: {
     ...(params.token ? { token: params.token } : {}),
     ...(params.title !== undefined ? { title: truncateUtf16Safe(params.title, 200) } : {}),
   };
+  if (agentSessionsUnsupported) {
+    return await setAssistantThreadStatus({ ...params, threadTs: params.threadTs });
+  }
   try {
     const response: SlackSessionResponse = await params.client.apiCall(
       "agents.sessions.setStatus",
@@ -60,6 +101,11 @@ export async function setSlackSessionStatus(params: {
     }
     return response.ok ? { ok: true, title: response.title } : { ok: false };
   } catch (error) {
+    const code = slackErrorCode(error);
+    if (code && NOT_AGENT_APP_CODES.has(code)) {
+      agentSessionsUnsupported = true;
+      return await setAssistantThreadStatus({ ...params, threadTs: params.threadTs });
+    }
     logVerbose(
       `slack status update failed for channel ${params.channelId}: ${formatSlackError(error)}`,
     );
