@@ -22,7 +22,12 @@ let warnedMissingStopSubscription = false;
 
 // Apps without Agent View cannot use agent sessions, but Slack's assistant thread
 // loading status accepts chat:write in any thread.
-const NOT_AGENT_APP_CODES = new Set(["not_agent_app", "missing_scope", "unknown_method"]);
+const NOT_AGENT_APP_CODES = new Set([
+  "not_agent_app",
+  "not_authorized",
+  "missing_scope",
+  "unknown_method",
+]);
 const FALLBACK_STATUS_TEXT: Record<SlackSessionStatus, string> = {
   processing: "is thinking...",
   suspended: "is waiting for approval...",

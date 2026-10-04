@@ -62,6 +62,30 @@ describe("setSlackSessionStatus", () => {
     });
   });
 
+  it("falls back when Slack reports agent sessions as not authorized", async () => {
+    const { setSlackSessionStatus } = await load();
+    const apiCall = vi.fn(async (method: string) => {
+      if (method === "agents.sessions.setStatus") {
+        throw Object.assign(new Error("An API error occurred: not_authorized"), {
+          data: { ok: false, error: "not_authorized" },
+        });
+      }
+      return { ok: true };
+    });
+    const result = await setSlackSessionStatus({
+      client: makeClient(apiCall),
+      channelId: "D1",
+      threadTs: "1.000",
+      status: "processing",
+    });
+    expect(result.ok).toBe(true);
+    expect(apiCall).toHaveBeenLastCalledWith("assistant.threads.setStatus", {
+      channel_id: "D1",
+      thread_ts: "1.000",
+      status: "is thinking...",
+    });
+  });
+
   it("clears the fallback status when the turn returns to active", async () => {
     const { setSlackSessionStatus } = await load();
     const apiCall = vi.fn(async (method: string) => {
