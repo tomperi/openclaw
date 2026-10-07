@@ -182,6 +182,76 @@ describe("createEmbeddedRunAuthController", () => {
     expect(harness.lastProfileId).toBe("openai:chatgpt");
   });
 
+  it("force-refreshes an OAuth token the provider rejected before its stored expiry, once", async () => {
+    const harness = createMutableAuthControllerHarness();
+    const setRuntimeApiKey: RuntimeApiKeySetter = vi.fn();
+    mocks.getApiKeyForModelCore.mockImplementation(async ({ forceRefresh }) => ({
+      apiKey: forceRefresh ? "fresh-access-token" : "revoked-access-token",
+      mode: "oauth" as const,
+      profileId: "openai:tom",
+      source: "profile",
+    }));
+    mocks.prepareProviderRuntimeAuth.mockResolvedValue(undefined);
+    const controller = createMutableEmbeddedRunAuthController({
+      harness,
+      setRuntimeApiKey,
+      profileCandidates: ["openai:tom"],
+    });
+    await controller.initializeAuthProfile();
+
+    const error = "401 Your authentication token has expired. Please try refreshing it.";
+    expect(await controller.maybeRefreshRuntimeAuthForAuthError(error, false)).toBe(true);
+    expect(mocks.getApiKeyForModelCore).toHaveBeenLastCalledWith(
+      expect.objectContaining({ forceRefresh: true }),
+    );
+    expect(setRuntimeApiKey).toHaveBeenLastCalledWith("custom-openai", "fresh-access-token");
+    // The retry is the only one: a second auth error goes to the normal cooldown/failover path.
+    expect(await controller.maybeRefreshRuntimeAuthForAuthError(error, true)).toBe(false);
+  });
+
+  it("does not retry an OAuth auth error when the forced refresh returns the same token or fails", async () => {
+    const harness = createMutableAuthControllerHarness();
+    mocks.getApiKeyForModelCore.mockResolvedValue({
+      apiKey: "same-token",
+      mode: "oauth" as const,
+      profileId: "openai:tom",
+      source: "profile",
+    });
+    mocks.prepareProviderRuntimeAuth.mockResolvedValue(undefined);
+    const controller = createMutableEmbeddedRunAuthController({
+      harness,
+      setRuntimeApiKey: vi.fn(),
+      profileCandidates: ["openai:tom"],
+    });
+    await controller.initializeAuthProfile();
+    const error = "401 Your authentication token has expired.";
+    expect(await controller.maybeRefreshRuntimeAuthForAuthError(error, false)).toBe(false);
+
+    mocks.getApiKeyForModelCore.mockRejectedValueOnce(new Error("refresh_token revoked"));
+    expect(await controller.maybeRefreshRuntimeAuthForAuthError(error, false)).toBe(false);
+  });
+
+  it("never force-refreshes a static API key on an auth error", async () => {
+    const harness = createMutableAuthControllerHarness();
+    mocks.getApiKeyForModelCore.mockResolvedValue({
+      apiKey: "sk-static",
+      mode: "api-key",
+      source: "config",
+    });
+    mocks.prepareProviderRuntimeAuth.mockResolvedValue(undefined);
+    const controller = createMutableEmbeddedRunAuthController({
+      harness,
+      setRuntimeApiKey: vi.fn(),
+    });
+    await controller.initializeAuthProfile();
+    mocks.getApiKeyForModelCore.mockClear();
+
+    expect(await controller.maybeRefreshRuntimeAuthForAuthError("401 invalid API key", false)).toBe(
+      false,
+    );
+    expect(mocks.getApiKeyForModelCore).not.toHaveBeenCalled();
+  });
+
   it("rejects credentials whose class does not match the prepared route", async () => {
     const harness = createMutableAuthControllerHarness();
     const commit = vi.fn();

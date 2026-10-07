@@ -841,6 +841,8 @@ interface CachedWebSocketConnection {
   socket: WebSocketLike;
   busy: boolean;
   createdAt: number;
+  /** Authorization the socket was opened with; a refreshed token must not reuse it. */
+  authorization?: string | null;
   idleTimer?: ReturnType<typeof setTimeout>;
   continuation?: CachedWebSocketContinuationState;
 }
@@ -1095,6 +1097,7 @@ async function acquireWebSocket(
   }
 
   const cached = websocketSessionCache.get(sessionId);
+  const authorization = headers.get("authorization");
   // Update the expected lease after our own cleanup before awaiting a new connection.
   let expectedCacheValue: CachedWebSocketConnection | undefined = cached;
   if (cached) {
@@ -1102,8 +1105,13 @@ async function acquireWebSocket(
       clearTimeout(cached.idleTimer);
       cached.idleTimer = undefined;
     }
-    if (!cached.busy && isWebSocketSessionExpired(cached)) {
-      closeWebSocketSilently(cached.socket, 1000, "connection_age_limit");
+    const expired = isWebSocketSessionExpired(cached);
+    if (!cached.busy && (expired || cached.authorization !== authorization)) {
+      closeWebSocketSilently(
+        cached.socket,
+        1000,
+        expired ? "connection_age_limit" : "credential_changed",
+      );
       deleteOwnedWebSocketSession(sessionId, cached);
       expectedCacheValue = undefined;
     } else if (!cached.busy && isWebSocketReusable(cached.socket)) {
@@ -1139,7 +1147,12 @@ async function acquireWebSocket(
   }
 
   const socket = await connectWebSocket(url, headers, signal);
-  const entry: CachedWebSocketConnection = { socket, busy: true, createdAt: Date.now() };
+  const entry: CachedWebSocketConnection = {
+    socket,
+    busy: true,
+    createdAt: Date.now(),
+    authorization,
+  };
   // A concurrent winner keeps the cache; this socket then remains transient.
   const ownsCache = setOwnedWebSocketSession(sessionId, entry, expectedCacheValue);
   return {

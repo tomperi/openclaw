@@ -32,11 +32,11 @@ const context = {
   messages: [{ role: "user", content: "hi", timestamp: 1 }],
 } satisfies Context;
 
-function createJwt(): string {
+function createJwt(signature = "signature"): string {
   const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString("base64url");
   return `${encode({ alg: "none", typ: "JWT" })}.${encode({
     "https://api.openai.com/auth": { chatgpt_account_id: "acct-1" },
-  })}.signature`;
+  })}.${signature}`;
 }
 
 function completion(responseId: string) {
@@ -238,6 +238,53 @@ describe("ChatGPT Responses cached transport", () => {
     );
     expect(connectionCount).toBe(2);
     expect(closedConnectionIds).not.toContain(2);
+  });
+
+  it("opens a new socket when the access token changes, instead of reusing the stale handshake", async () => {
+    let connectionCount = 0;
+    const closed: Array<{ id: number; reason?: string }> = [];
+
+    class CachedWebSocket extends EventTarget {
+      readonly connectionId = ++connectionCount;
+      readyState = 1;
+
+      constructor() {
+        super();
+        queueMicrotask(() => this.dispatchEvent(new Event("open")));
+      }
+
+      send(): void {
+        queueMicrotask(() => {
+          this.dispatchEvent(
+            Object.assign(new Event("message"), {
+              data: JSON.stringify(completion(`resp_${this.connectionId}`)),
+            }),
+          );
+        });
+      }
+
+      close(_code?: number, reason?: string): void {
+        this.readyState = 3;
+        closed.push({ id: this.connectionId, reason });
+      }
+    }
+
+    vi.stubGlobal("WebSocket", CachedWebSocket);
+    const sessionId = "refreshed-oauth-token";
+    const turn = (apiKey: string) =>
+      streamOpenAICodexResponses(model, context, {
+        apiKey,
+        sessionId,
+        transport: "websocket-cached",
+      }).result();
+
+    expect((await turn(createJwt("revoked"))).stopReason).toBe("stop");
+    expect((await turn(createJwt("revoked"))).stopReason).toBe("stop");
+    expect(connectionCount).toBe(1);
+
+    expect((await turn(createJwt("refreshed"))).stopReason).toBe("stop");
+    expect(connectionCount).toBe(2);
+    expect(closed).toContainEqual({ id: 1, reason: "credential_changed" });
   });
 
   it("does not prepare SSE requests or serialize full bodies for cached websocket turns", async () => {

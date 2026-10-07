@@ -503,7 +503,11 @@ export function createEmbeddedRunAuthController(params: {
     throw new Error(message);
   };
 
-  const applyApiKeyInfo = async (candidate?: string, attemptIndex?: number): Promise<void> => {
+  const applyApiKeyInfo = async (
+    candidate?: string,
+    attemptIndex?: number,
+    options?: { forceRefresh?: boolean },
+  ): Promise<void> => {
     const preparedModel = await params.prepareModelForAuthProfile?.(candidate, attemptIndex);
     const apiKeyInfo = await getApiKeyForModelCore({
       model: preparedModel?.runtimeModel ?? state.models.runtime,
@@ -515,6 +519,7 @@ export function createEmbeddedRunAuthController(params: {
       lockedProfile: candidate != null && candidate === params.lockedProfileId,
       allowAuthProfileFallback: preparedModel?.allowAuthProfileFallback,
       secretSentinels: true,
+      forceRefresh: options?.forceRefresh,
     });
     if (
       preparedModel?.authRequirement &&
@@ -669,7 +674,7 @@ export function createEmbeddedRunAuthController(params: {
     errorText: string,
     retried: boolean,
   ): Promise<boolean> => {
-    if (!state.runtimeAuthState || retried) {
+    if (retried) {
       return false;
     }
     if (!isFailoverErrorMessage(errorText, { provider: params.provider })) {
@@ -678,6 +683,9 @@ export function createEmbeddedRunAuthController(params: {
     if (classifyFailoverReason(errorText, { provider: params.provider }) !== "auth") {
       return false;
     }
+    if (!state.runtimeAuthState) {
+      return await forceRefreshOAuthProfile();
+    }
     try {
       await refreshRuntimeAuth("auth-error");
       scheduleRuntimeAuthRefresh();
@@ -685,6 +693,27 @@ export function createEmbeddedRunAuthController(params: {
     } catch {
       return false;
     }
+  };
+
+  // A provider can revoke an OAuth access token before its stored expiry (e.g. across host sleep),
+  // and the store would keep serving it; refresh once and retry before any cooldown or failover.
+  const forceRefreshOAuthProfile = async (): Promise<boolean> => {
+    if (state.apiKeyInfo?.mode !== "oauth") {
+      return false;
+    }
+    const rejected = state.apiKeyInfo.apiKey;
+    try {
+      await applyApiKeyInfo(params.profileCandidates[state.profileIndex], state.profileIndex, {
+        forceRefresh: true,
+      });
+    } catch (err) {
+      params.log.warn(
+        `forced OAuth refresh after an auth error failed for ${params.provider}: ${formatErrorMessage(err)}`,
+      );
+      return false;
+    }
+    const refreshed = state.apiKeyInfo?.apiKey;
+    return Boolean(refreshed) && refreshed !== rejected;
   };
 
   return {

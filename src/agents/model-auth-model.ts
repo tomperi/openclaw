@@ -249,6 +249,8 @@ export async function getApiKeyForModelCore(params: {
   allowAuthProfileFallback?: boolean;
   skipSetupProviderFallback?: boolean;
   secretSentinels?: boolean;
+  /** Refresh an OAuth credential even when its stored expiry is still in the future. */
+  forceRefresh?: boolean;
 }): Promise<ResolvedProviderAuth> {
   return resolveApiKeyForProviderCore({
     provider: params.model.provider,
@@ -266,6 +268,7 @@ export async function getApiKeyForModelCore(params: {
     modelApi: params.model.api,
     modelBaseUrl: params.model.baseUrl,
     secretSentinels: params.secretSentinels,
+    forceRefresh: params.forceRefresh,
   });
 }
 
