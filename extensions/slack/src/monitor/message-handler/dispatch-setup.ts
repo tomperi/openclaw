@@ -18,6 +18,7 @@ import { resolveStorePath, updateLastRoute } from "openclaw/plugin-sdk/session-s
 import { normalizeOptionalLowercaseString } from "openclaw/plugin-sdk/string-coerce-runtime";
 import { reactSlackMessage, removeSlackReaction } from "../../actions.js";
 import { formatSlackError } from "../../errors.js";
+import { usesAssistantThreadStatus } from "../../session-status.js";
 import { resolveSlackStreamingConfig } from "../../stream-mode.js";
 import { resolveSlackThreadContext } from "../../threading.js";
 import { normalizeSlackAllowOwnerEntry } from "../allow-list.js";
@@ -30,6 +31,8 @@ import {
   shouldUseStreaming,
 } from "./dispatch-helpers.js";
 import type { PreparedSlackMessage } from "./types.js";
+
+const FALLBACK_STATUS_REFRESH_MS = 90_000;
 
 export async function createSlackDispatchSetup(prepared: PreparedSlackMessage) {
   const { ctx, account, message, route } = prepared;
@@ -126,6 +129,7 @@ export async function createSlackDispatchSetup(prepared: PreparedSlackMessage) {
   const incomingThreadTs = message.thread_ts;
   let didSetStatus = false;
   let statusWasSet = false;
+  const fallbackStatus = { writtenAt: 0, writtenAfterOutput: false };
   let didAddTypingReaction = false;
   const statusReactionsEnabled =
     prepared.ctxPayload.InboundEventKind !== "room_event" &&
@@ -188,7 +192,21 @@ export async function createSlackDispatchSetup(prepared: PreparedSlackMessage) {
       : ctx.typingReaction;
   // Session status is a state write, not a typing keepalive. Start it once
   // before visible output; the dispatcher owns the delivered/preview gate.
-  const threadStatusGate = { hasVisibleOutput: () => false };
+  // The assistant-thread fallback is the exception: Slack clears it when the app
+  // posts in the thread (the progress card) and after two minutes, so it is
+  // written again after the first visible output and every 90 seconds until
+  // the reply itself is delivered.
+  const threadStatusGate = { hasVisibleOutput: () => false, hasReplyOutput: () => false };
+  const shouldRefreshFallbackStatus = () =>
+    didSetStatus &&
+    usesAssistantThreadStatus() &&
+    !threadStatusGate.hasReplyOutput() &&
+    ((threadStatusGate.hasVisibleOutput() && !fallbackStatus.writtenAfterOutput) ||
+      Date.now() - fallbackStatus.writtenAt >= FALLBACK_STATUS_REFRESH_MS);
+  const markFallbackStatusWritten = () => {
+    fallbackStatus.writtenAt = Date.now();
+    fallbackStatus.writtenAfterOutput = threadStatusGate.hasVisibleOutput();
+  };
   const { onModelSelected, ...replyPipeline } = createChannelMessageReplyPipeline({
     cfg,
     agentId: route.agentId,
@@ -205,6 +223,15 @@ export async function createSlackDispatchSetup(prepared: PreparedSlackMessage) {
             status: "processing",
             // Initialize new sessions with core's derived label; later title changes use rename.
             title: prepared.sessionDisplayName ?? prepared.ctxPayload.ThreadLabel,
+            eventScope: prepared.eventScope,
+          });
+          markFallbackStatusWritten();
+        } else if (shouldRefreshFallbackStatus()) {
+          markFallbackStatusWritten();
+          await ctx.setSlackSessionStatus({
+            channelId: message.channel,
+            threadTs: statusThreadTs,
+            status: "processing",
             eventScope: prepared.eventScope,
           });
         }

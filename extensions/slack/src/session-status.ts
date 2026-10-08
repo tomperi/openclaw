@@ -35,6 +35,11 @@ const FALLBACK_STATUS_TEXT: Record<SlackSessionStatus, string> = {
 };
 let agentSessionsUnsupported = false;
 
+/** True once Slack rejected agent sessions and statuses go through assistant.threads. */
+export function usesAssistantThreadStatus(): boolean {
+  return agentSessionsUnsupported;
+}
+
 function slackErrorCode(error: unknown): string | undefined {
   const data = (error as { data?: { error?: unknown } } | undefined)?.data;
   return typeof data?.error === "string" ? data.error : undefined;

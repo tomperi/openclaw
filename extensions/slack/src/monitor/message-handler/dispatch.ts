@@ -120,11 +120,12 @@ async function dispatchSlackMessageWithSetup(
   const { draftStream, previewLifecycle } = progress;
   // A posted draft/progress message counts as visible output even before it is
   // committed as the reply, so the status keepalive stops at the same moment
-  // Slack drops the status row.
+  // Slack drops the status row. The assistant-thread fallback keeps going until
+  // the reply output itself exists.
+  setup.threadStatusGate.hasReplyOutput = () =>
+    delivery.observedReplyDelivery || previewLifecycle.previewFinalized;
   setup.threadStatusGate.hasVisibleOutput = () =>
-    delivery.observedReplyDelivery ||
-    previewLifecycle.previewFinalized ||
-    Boolean(draftStream?.messageId());
+    setup.threadStatusGate.hasReplyOutput() || Boolean(draftStream?.messageId());
   const failureNoticeThreadTs = message.thread_ts;
   const failureNoticeTeamId = prepared.eventScope?.teamId;
   let sawTerminalFailurePayload = false;
