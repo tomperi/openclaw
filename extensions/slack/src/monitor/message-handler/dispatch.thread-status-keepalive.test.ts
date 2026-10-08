@@ -97,9 +97,8 @@ async function fixture(params: { agentSessions: boolean }) {
   if (!typing?.start || !typing.stop) {
     throw new Error("registered typing callbacks missing");
   }
-  const output = { visible: false, reply: false };
-  setup.threadStatusGate.hasVisibleOutput = () => output.visible || output.reply;
-  setup.threadStatusGate.hasReplyOutput = () => output.reply;
+  const output = { visible: false };
+  setup.threadStatusGate.hasVisibleOutput = () => output.visible;
   const threadStatusWrites = () =>
     api.mock.calls.filter(([method]) => method === "assistant.threads.setStatus");
   return { api, output, threadStatusWrites, start: typing.start, stop: typing.stop };
@@ -116,7 +115,7 @@ afterEach(() => {
 });
 
 describe("Slack assistant-thread status keepalive", () => {
-  it("re-asserts the fallback status after the progress card posts, then every 90 seconds", async () => {
+  it("re-asserts the fallback status after the progress card posts, then every 30 seconds", async () => {
     const f = await fixture({ agentSessions: false });
     await f.start();
     await f.start();
@@ -127,7 +126,7 @@ describe("Slack assistant-thread status keepalive", () => {
     await f.start();
     expect(f.threadStatusWrites()).toHaveLength(2);
 
-    vi.advanceTimersByTime(89_000);
+    vi.advanceTimersByTime(29_000);
     await f.start();
     expect(f.threadStatusWrites()).toHaveLength(2);
     vi.advanceTimersByTime(1_000);
@@ -136,15 +135,21 @@ describe("Slack assistant-thread status keepalive", () => {
     expect(f.threadStatusWrites().at(-1)?.[1]).toMatchObject({ status: "is thinking..." });
   });
 
-  it("stops re-asserting the fallback status once the reply itself is delivered", async () => {
+  it("keeps the fallback status after a native progress stream counts as delivered, until stop", async () => {
     const f = await fixture({ agentSessions: false });
     await f.start();
-    f.output.reply = true;
-    vi.advanceTimersByTime(120_000);
-    await f.start();
-    expect(f.threadStatusWrites()).toHaveLength(1);
+    // Native progress marks the reply delivered when the card first streams.
+    f.output.visible = true;
+    for (let i = 0; i < 4; i++) {
+      vi.advanceTimersByTime(30_000);
+      await f.start();
+    }
+    expect(f.threadStatusWrites()).toHaveLength(5);
     await f.stop();
     expect(f.threadStatusWrites().at(-1)?.[1]).toMatchObject({ status: "" });
+    vi.advanceTimersByTime(30_000);
+    await f.start();
+    expect(f.threadStatusWrites()).toHaveLength(6);
   });
 
   it("writes an agent-session status once, as upstream does", async () => {

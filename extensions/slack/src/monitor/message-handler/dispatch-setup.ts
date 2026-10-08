@@ -32,7 +32,7 @@ import {
 } from "./dispatch-helpers.js";
 import type { PreparedSlackMessage } from "./types.js";
 
-const FALLBACK_STATUS_REFRESH_MS = 90_000;
+const FALLBACK_STATUS_REFRESH_MS = 30_000;
 
 export async function createSlackDispatchSetup(prepared: PreparedSlackMessage) {
   const { ctx, account, message, route } = prepared;
@@ -193,14 +193,14 @@ export async function createSlackDispatchSetup(prepared: PreparedSlackMessage) {
   // Session status is a state write, not a typing keepalive. Start it once
   // before visible output; the dispatcher owns the delivered/preview gate.
   // The assistant-thread fallback is the exception: Slack clears it when the app
-  // posts in the thread (the progress card) and after two minutes, so it is
-  // written again after the first visible output and every 90 seconds until
-  // the reply itself is delivered.
-  const threadStatusGate = { hasVisibleOutput: () => false, hasReplyOutput: () => false };
+  // posts in the thread (the progress card) and after two minutes, but not on an
+  // edit, so it is written again after the first visible output and every 30
+  // seconds until typing stops. A native progress stream counts as a delivered
+  // reply from its first post, so delivery cannot mark the end of the turn.
+  const threadStatusGate = { hasVisibleOutput: () => false };
   const shouldRefreshFallbackStatus = () =>
     didSetStatus &&
     usesAssistantThreadStatus() &&
-    !threadStatusGate.hasReplyOutput() &&
     ((threadStatusGate.hasVisibleOutput() && !fallbackStatus.writtenAfterOutput) ||
       Date.now() - fallbackStatus.writtenAt >= FALLBACK_STATUS_REFRESH_MS);
   const markFallbackStatusWritten = () => {
