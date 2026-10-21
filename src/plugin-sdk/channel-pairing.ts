@@ -8,6 +8,7 @@ export {
   createTextPairingAdapter,
 } from "../channels/plugins/pairing-adapters.js";
 export {
+  approveChannelPairingCode,
   readChannelAllowFromStore,
   readChannelAllowFromStoreSync,
 } from "../pairing/pairing-store.js";

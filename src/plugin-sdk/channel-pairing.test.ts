@@ -178,3 +178,10 @@ describe("createChannelPairingChallengeIssuer", () => {
     );
   });
 });
+
+describe("channel-pairing operator approval export", () => {
+  it("exports approveChannelPairingCode for operator pairing plugins", async () => {
+    const mod: Record<string, unknown> = await import("./channel-pairing.js");
+    expect(typeof mod.approveChannelPairingCode).toBe("function");
+  });
+});
