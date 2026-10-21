@@ -42,11 +42,11 @@ const simpleContext = {
   messages: [{ role: "user", content: "hi", timestamp: 1 }],
 } satisfies Context;
 
-function createJwt(): string {
+function createJwt(signature = "signature"): string {
   const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString("base64url");
   return `${encode({ alg: "none", typ: "JWT" })}.${encode({
     "https://api.openai.com/auth": { chatgpt_account_id: "acct-1" },
-  })}.signature`;
+  })}.${signature}`;
 }
 
 function completion(responseId: string) {
@@ -90,6 +90,45 @@ describe("ChatGPT Responses cached transport", () => {
     vi.unstubAllGlobals();
     resetOpenAICodexWebSocketStateForTest();
     configureAiTransportHost({});
+  });
+
+  it("opens a new socket when the access token changes, instead of reusing the stale handshake", async () => {
+    const sessionId = "refreshed-oauth-token";
+    const handshakes: IncomingMessage["headers"][] = [];
+    vi.stubGlobal("WebSocket", WebSocket);
+    const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+    server.on("connection", (socket, request) => {
+      const connectionId = handshakes.length + 1;
+      handshakes.push(request.headers);
+      let requestCount = 0;
+      socket.on("message", () => {
+        requestCount += 1;
+        socket.send(JSON.stringify(completion(`resp_${connectionId}_${requestCount}`)));
+      });
+    });
+    await once(server, "listening");
+    const loopbackModel = createLoopbackModel(server);
+    const turn = (apiKey: string) =>
+      streamOpenAICodexResponses(loopbackModel, simpleContext, {
+        apiKey,
+        sessionId,
+        transport: "websocket-cached" as const,
+      }).result();
+    const revoked = createJwt("revoked");
+    const refreshed = createJwt("refreshed");
+
+    try {
+      await expectStopped(turn(revoked));
+      await expectStopped(turn(revoked));
+      expect(handshakes).toHaveLength(1);
+
+      await expectStopped(turn(refreshed));
+      expect(handshakes).toHaveLength(2);
+      expect(handshakes[1]).toMatchObject({ authorization: `Bearer ${refreshed}` });
+    } finally {
+      closeOpenAICodexWebSocketSessions(sessionId);
+      await closeServer(server, server.clients);
+    }
   });
 
   it("keeps an authenticated replacement socket after aborting a reused lease", async () => {
