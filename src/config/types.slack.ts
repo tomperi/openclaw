@@ -40,6 +40,8 @@ export type SlackChannelConfig = Omit<CommonChannelGroupConfig, "allowFrom"> & {
   botLoopProtection?: ChannelBotLoopProtectionConfig;
   /** Allowlist of users that can invoke the bot in this channel. */
   users?: Array<string | number>;
+  /** Ack reaction for this channel; an empty string disables the ack here. */
+  ackReaction?: string;
   /** Slack presence polling and agent wake mode for this channel. */
   presenceEvents?: SlackPresenceEventsConfig;
 };

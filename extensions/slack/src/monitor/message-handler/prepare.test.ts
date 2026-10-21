@@ -725,6 +725,46 @@ describe("slack prepareSlackMessage inbound contract", () => {
     expect(await prepared.ackReactionPromise).toBe(true);
   });
 
+  it("honors a per-channel ackReaction override, with empty string disabling the ack", async () => {
+    const makeCtx = (channelAck: string | undefined) => {
+      const ctx = createInboundSlackCtx({
+        cfg: {
+          messages: { ackReaction: "eyes", ackReactionScope: "all" },
+          channels: { slack: { enabled: true, groupPolicy: "open", replyToMode: "all" } },
+        } as OpenClawConfig,
+        replyToMode: "all",
+        channelsConfig: {
+          C123: { enabled: true, ...(channelAck !== undefined ? { ackReaction: channelAck } : {}) },
+        },
+      });
+      ctx.resolveUserName = async () => ({ name: "Alice" });
+      ctx.resolveChannelName = async () => ({ name: "general", type: "channel" });
+      return ctx;
+    };
+    const message = createSlackMessage({
+      channel: "C123",
+      channel_type: "channel",
+      text: "<@B1> hi",
+    });
+
+    const disabled = await prepareMessageWith(makeCtx(""), defaultAccount, message);
+    assert(disabled);
+    expect(disabled.ackReactionValue).toBe("");
+    expect(disabled.ackReactionPromise).toBeNull();
+
+    const overridden = await prepareMessageWith(
+      makeCtx("satellite_antenna"),
+      defaultAccount,
+      message,
+    );
+    assert(overridden);
+    expect(overridden.ackReactionValue).toBe("satellite_antenna");
+
+    const fallthrough = await prepareMessageWith(makeCtx(undefined), defaultAccount, message);
+    assert(fallthrough);
+    expect(fallthrough.ackReactionValue).toBe("eyes");
+  });
+
   it("sends Slack ack reactions for room events when ack scope is all", async () => {
     const reactionAdd = vi.fn().mockResolvedValue({ ok: true });
     const slackCtx = createAckRoomContext(

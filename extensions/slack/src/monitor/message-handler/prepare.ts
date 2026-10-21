@@ -1081,10 +1081,14 @@ export async function prepareSlackMessage(params: {
         rawBody,
       })
     : rawBody;
-  const ackReaction = resolveAckReaction(cfg, route.agentId, {
-    channel: "slack",
-    accountId: account.accountId,
-  });
+  // An empty per-channel value disables the ack for that channel only.
+  const ackReaction =
+    channelConfig?.ackReaction !== undefined
+      ? channelConfig.ackReaction.trim()
+      : resolveAckReaction(cfg, route.agentId, {
+          channel: "slack",
+          accountId: account.accountId,
+        });
   const ackReactionValue = ackReaction ?? "";
   const sourceRepliesAreToolOnly =
     resolveChannelMessageSourceReplyDeliveryMode({

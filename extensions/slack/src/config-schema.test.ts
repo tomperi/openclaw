@@ -118,3 +118,10 @@ describe("slack config schema", () => {
     }
   });
 });
+
+describe("slack per-channel ackReaction", () => {
+  it("accepts an ackReaction override on a channel entry, including the empty string", () => {
+    expectSlackConfigValid({ channels: { C08G3R7RB0R: { enabled: true, ackReaction: "" } } });
+    expectSlackConfigValid({ channels: { C1: { ackReaction: "satellite_antenna" } } });
+  });
+});

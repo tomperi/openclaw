@@ -55,6 +55,7 @@ const SlackChannelSchema = buildGroupEntrySchema(
     botLoopProtection: ChannelBotLoopProtectionSchema.optional(),
     users: z.array(z.union([z.string(), z.number()])).optional(),
     presenceEvents: SlackPresenceEventsSchema.optional(),
+    ackReaction: z.string().optional(),
   },
   { omit: ["allowFrom"] },
 );

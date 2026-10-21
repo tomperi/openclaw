@@ -103,6 +103,7 @@ export function resolveSlackChannelConfig(params: {
     skills: firstDefined(resolved.skills, fallback?.skills),
     systemPrompt: firstDefined(resolved.systemPrompt, fallback?.systemPrompt),
     presenceEvents: firstDefined(resolved.presenceEvents, fallback?.presenceEvents),
+    ackReaction: firstDefined(resolved.ackReaction, fallback?.ackReaction),
   };
   return applyChannelMatchMeta(result, match);
 }
