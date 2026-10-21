@@ -5,7 +5,7 @@ import { danger } from "openclaw/plugin-sdk/runtime-env";
 import { dispatchSlackPluginInteractiveHandler } from "../../interactive-dispatch.js";
 import { authorizeSlackSystemEventSender } from "../auth.js";
 import type { SlackMonitorContext } from "../context.js";
-import { resolveSlackListenerEventScope } from "./system-event-context.js";
+import { resolveSlackMonitorEventScope } from "../event-scope.js";
 
 type EntityDetailsRequestedEvent = SlackEventMiddlewareArgs<"entity_details_requested">["event"];
 
@@ -22,7 +22,7 @@ export async function handleSlackEntityDetailsRequested(params: {
 }): Promise<void> {
   const { ctx, trackEvent, body } = params;
   try {
-    const eventScope = resolveSlackListenerEventScope({
+    const eventScope = resolveSlackMonitorEventScope({
       ctx,
       body,
       context: params.context,
